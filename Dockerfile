@@ -31,8 +31,8 @@ ENV RESET_PASSWORD_TOKEN_EXPIRATION_DAYS 7
 
 ENV SMTP_HOST smtp.gmail.com
 ENV SMTP_PORT 587
-ENV SMTP_USERNAME josephvarghese98128@gmail.com
-ENV SMTP_PASSWORD fsgw zdqy fago kqla
+ENV SMTP_USERNAME wonder.creative.studio9@gmail.com
+ENV SMTP_PASSWORD jtxv xmrq ynrd tqhr
 ENV EMAIL_FROM wondercreativestudio@gmail.com
 
 # FRONTEND_URL = 5000
