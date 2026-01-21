@@ -37,9 +37,9 @@ jobs:
 
     - name: Reset docker history
       run:  sudo docker system prune -f || true
+
     - name: Pull Docker image
       run: sudo docker pull moinaknaskar/zenova:latest
-    - name: Delete Old docker container
-      run: sudo docker rm -f zenova-api || true
+
     - name: Run Docker Container
       run: sudo docker run -d -p 8000:8000 --name zenova-api moinaknaskar/zenova
