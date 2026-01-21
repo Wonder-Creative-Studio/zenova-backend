@@ -6,7 +6,7 @@ import config from '~/config/config';
 import httpStatus from 'http-status';
 import Token from '~/models/tokenModel';
 import Role from '~/models/roleModel';
-import googleService from '~/services/googleService'; 
+import googleService from '~/services/googleService';
 import appleService from '~/services/appleService';
 
 export const signup = async (req, res) => {
@@ -128,17 +128,28 @@ export const signin = async (req, res) => {
     }
 
     // generate tokens
-    const tokens = await tokenService.generateAuthTokens(user); 
+    const tokens = await tokenService.generateAuthTokens(user);
+    console.log(tokens);
 
     user = user.toObject();
     user.roles = user.roles?.[0]?.name || 'User';
 
+    const options = {
+      httpOnly: false,
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000
 
-    return res.json({
-      success: true,
-      data: { user, tokens },
-      message: 'Login successful',
-    });
+
+    }
+
+    return res
+      .cookie("accessToken", tokens.accessToken.token, options)
+      .cookie("refreshToken", tokens.refreshToken.token, options)
+      .json({
+        success: true,
+        data: { user, tokens },
+        message: 'Login successful',
+      });
   } catch (err) {
     return res.status(400).json({
       success: false,
@@ -149,19 +160,19 @@ export const signin = async (req, res) => {
 };
 
 export const current = async (req, res) => {
-	const user = await User.getUserById(req.user.id);
-	if (!user) {
-		throw new APIError('User not found', httpStatus.NOT_FOUND);
-	}
-	return res.json({
-		success: true,
-		data: {
-			fullName: user.fullName,
-			userName: user.userName,
-			avatarUrl: user.avatarUrl
-		}, 
-		message: 'fetched successful'
-	});
+  const user = await User.getUserById(req.user.id);
+  if (!user) {
+    throw new APIError('User not found', httpStatus.NOT_FOUND);
+  }
+  return res.json({
+    success: true,
+    data: {
+      fullName: user.fullName,
+      userName: user.userName,
+      avatarUrl: user.avatarUrl
+    },
+    message: 'fetched successful'
+  });
 };
 
 export const getMe = async (req, res) => {
@@ -288,7 +299,7 @@ export const verifyEmail = async (req, res) => {
     }
     await Token.deleteMany({ user: user.id, type: config.TOKEN_TYPES.VERIFY_EMAIL });
     await User.updateUserById(user.id, { confirmed: true });
-    
+
     return res.json({
       success: true,
       data: {}, // ✅ empty object
@@ -303,7 +314,7 @@ export const forgotPassword = async (req, res) => {
   try {
     const resetPasswordToken = await tokenService.generateResetPasswordToken(req.body.email);
     await emailService.sendResetPasswordEmail(req.body.email, resetPasswordToken);
-    
+
     return res.json({
       success: true,
       data: {}, // ✅ was string, now empty object
@@ -335,7 +346,7 @@ export const resetPassword = async (req, res) => {
     }
     await Token.deleteMany({ user: user.id, type: config.TOKEN_TYPES.RESET_PASSWORD });
     await User.updateUserById(user.id, { password: req.body.password });
-    
+
     return res.json({
       success: true,
       data: {}, // ✅ empty object
@@ -344,7 +355,7 @@ export const resetPassword = async (req, res) => {
   } catch (err) {
     return sendAuthError(res, 'Password reset failed', httpStatus.UNAUTHORIZED);
   }
-}; 
+};
 
 export const googleSignIn = async (req, res) => {
   try {
@@ -405,17 +416,17 @@ export const appleSignIn = async (req, res) => {
 
 
 export default {
-	signup,
-	signin,
-	current,
-	getMe,
-	updateMe,
-	signout,
-	refreshTokens,
-	sendVerificationEmail,
-	verifyEmail,
-	forgotPassword,
-	resetPassword,
-  googleSignIn, 
+  signup,
+  signin,
+  current,
+  getMe,
+  updateMe,
+  signout,
+  refreshTokens,
+  sendVerificationEmail,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
+  googleSignIn,
   appleSignIn
 };

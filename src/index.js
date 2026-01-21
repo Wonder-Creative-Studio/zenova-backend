@@ -9,7 +9,7 @@ let server;
 
 mongoose.Promise = global.Promise;
 
-   
+
 const db = mongoose.connection;
 
 db.on('connecting', () => {
@@ -39,10 +39,10 @@ const connect = async () => {
 		logger.info('🚀 Connected to MongoDB end!');
 		await initialData();
 		logger.info('🚀 Initial MongoDB!');
-		
+
 		const port = config.PORT || 5000;
 		server = app.listen(port, '0.0.0.0', () => {
-  			logger.info(`🚀 Server running on port ${port}`);
+			logger.info(`🚀 Server running on port ${port}`);
 			logger.info('██████╗░░░██╗██╗███████╗');
 			logger.info('██╔══██╗░██╔╝██║╚════██║');
 			logger.info('██║░░██║██╔╝░██║░░███╔═╝');
@@ -81,5 +81,21 @@ process.on('SIGTERM', () => {
 	logger.info('SIGTERM received');
 	if (server) {
 		server.close();
+	}
+	mongoose.disconnect();
+});
+
+process.on('SIGINT', () => {
+	logger.info('SIGINT received (Ctrl+C)');
+	if (server) {
+		server.close(() => {
+			logger.info('Server closed');
+			mongoose.disconnect().then(() => {
+				logger.info('MongoDB disconnected');
+				process.exit(0);
+			});
+		});
+	} else {
+		process.exit(0);
 	}
 });

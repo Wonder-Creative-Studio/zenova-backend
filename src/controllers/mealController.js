@@ -4,8 +4,8 @@ import MealLog from '~/models/mealLogModel';
 import GroceryList from '~/models/groceryListModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
-import APIError from '~/utils/apiError'; 
-import questService from '~/services/questService'; 
+import APIError from '~/utils/apiError';
+import questService from '~/services/questService';
 import streakService from '~/services/streakService';
 
 // Helper: Calculate target calories based on user profile
@@ -13,7 +13,7 @@ const calculateTargetCalories = (user) => {
   let base = 2000;
   if (user.lifestyle === 'very_active') base = 2500;
   else if (user.lifestyle === 'sedentary') base = 1800;
-  
+
   // Adjust for weight goal (simplified)
   if (user.wellnessGoal === 'weight_loss') return base - 300;
   if (user.wellnessGoal === 'muscle_gain') return base + 300;
@@ -26,9 +26,9 @@ const generateSimplePlan = (targetCalories) => {
   const lunch = { food: "Quinoa Salad", calories: 220, protein: 5, carbs: 40, fats: 4 };
   const dinner = { food: "Brown Rice + Veggies", calories: 220, protein: 5, carbs: 40, fats: 4 };
   const snack = { food: "Almonds (10 pcs)", calories: 70, protein: 3, carbs: 2, fats: 6 };
-  
+
   const total = breakfast.calories + lunch.calories + dinner.calories + snack.calories;
-  
+
   return { breakfast, lunch, dinner, snack, totalCalories: total, targetCalories };
 };
 
@@ -36,7 +36,15 @@ export const generateMealPlan = async (req, res) => {
   try {
     const userId = req.user.id;
     const inputDate = req.body.date ? new Date(req.body.date) : new Date();
-    const date = new Date(inputDate.getFullYear(), inputDate.getMonth(), inputDate.getDate()); // normalize to midnight
+
+    // Use LOCAL date components (not UTC) to get correct date for user's timezone
+    const year = inputDate.getFullYear();
+    const month = String(inputDate.getMonth() + 1).padStart(2, '0');
+    const day = String(inputDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`; // "2026-01-21" in local time
+    const date = new Date(dateStr + 'T00:00:00.000Z'); // Store as midnight UTC
+
+    console.log('Local date:', dateStr, 'Stored date:', date.toISOString());
 
     const user = await User.findById(userId);
     if (!user) {
@@ -261,6 +269,25 @@ export const getMealLogs = async (req, res) => {
   }
 };
 
+export const getMealPlan = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { date } = req.query;
+    const mealPlan = await MealPlan.findOne({ userId, date });
+    return res.json({
+      success: true,
+      data: mealPlan,
+      message: 'Meal plan fetched successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to fetch meal plan',
+    });
+  }
+};
+
 // Get nutrition summary (already partially built — enhance it)
 export const getNutritionSummary = async (req, res) => {
   try {
@@ -304,6 +331,57 @@ export const getNutritionSummary = async (req, res) => {
   }
 };
 
+export const updateMealPlan = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { date, breakfast, lunch, dinner, snack, totalCalories, targetCalories } = req.body;
+
+    // Normalize date (same as generateMealPlan)
+    const inputDate = new Date(date);
+    const year = inputDate.getFullYear();
+    const month = String(inputDate.getMonth() + 1).padStart(2, '0');
+    const day = String(inputDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    const normalizedDate = new Date(dateStr + 'T00:00:00.000Z');
+
+    // Build update object with only provided fields
+    const updateFields = {};
+    if (breakfast) updateFields.breakfast = breakfast;
+    if (lunch) updateFields.lunch = lunch;
+    if (dinner) updateFields.dinner = dinner;
+    if (snack) updateFields.snack = snack;
+    if (totalCalories !== undefined) updateFields.totalCalories = totalCalories;
+    if (targetCalories !== undefined) updateFields.targetCalories = targetCalories;
+
+    console.log('Updating meal plan for date:', normalizedDate, 'Fields:', updateFields);
+
+    const updatedMealPlan = await MealPlan.findOneAndUpdate(
+      { userId, date: normalizedDate },
+      { $set: updateFields },
+      { new: true }
+    );
+
+    if (!updatedMealPlan) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal plan not found for this date',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: updatedMealPlan,
+      message: 'Meal plan updated successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to update meal plan',
+    });
+  }
+};
 
 
 export default {
@@ -311,9 +389,11 @@ export default {
   logMeal,
   generateGroceryList,
   getMealLogs,
-  getNutritionSummary
+  getNutritionSummary,
+  getMealPlan,
+  updateMealPlan
 
-}; 
+};
 
 // src/controllers/mealController.js
 // import httpStatus from 'http-status';

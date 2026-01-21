@@ -9,6 +9,7 @@ import rateLimiter from '~/middlewares/rateLimiter';
 import config from '~/config/config';
 import morgan from '~/config/morgan';
 import startNotificationScheduler from './services/notificationScheduler';
+import cookieParser from 'cookie-parser';
 
 const app = express();
 
@@ -31,13 +32,15 @@ app.use(cors());
 app.use(rateLimiter);
 app.use(passport.initialize());
 app.use(express.static('public'));
+app.use(cookieParser());
 
-app.get("/", 
-	(req,res)=>{
-	return res.json({
-		status:200,
-		data:"It's live"
-   })})
+app.get("/",
+	(req, res) => {
+		return res.json({
+			status: 200,
+			data: "It's live"
+		})
+	})
 app.use('/api', routes);
 
 app.use(error.converter);

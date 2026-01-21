@@ -3,10 +3,19 @@ import passport from 'passport';
 import config from './config';
 import User from '~/models/userModel';
 
+// Custom extractor: check cookies first, then Authorization header
+const cookieExtractor = (req) => {
+	if (req && req.cookies && req.cookies.accessToken) {
+		return req.cookies.accessToken;
+	}
+	// Fallback to Authorization header
+	return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+};
+
 passport.use(
 	new JwtStrategy(
 		{
-			jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+			jwtFromRequest: cookieExtractor,
 			secretOrKey: config.JWT_ACCESS_TOKEN_SECRET_PUBLIC,
 			algorithms: 'RS256'
 		},

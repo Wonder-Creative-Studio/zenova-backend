@@ -13,5 +13,7 @@ router.post('/log', authenticate(), validate(mealValidation.logMeal), catchAsync
 router.post('/grocery-list', authenticate(), validate(mealValidation.generateGroceryList), catchAsync(mealController.generateGroceryList));
 router.get('/logs', authenticate(), validate(mealValidation.getMealLogs), catchAsync(mealController.getMealLogs));
 router.get('/summary', authenticate(), validate(mealValidation.getNutritionSummary), catchAsync(mealController.getNutritionSummary));
+router.get('/get-meal-plan', authenticate(), catchAsync(mealController.getMealPlan));
+router.put('/update-meal-plan', authenticate(), validate(mealValidation.updateMealPlan), catchAsync(mealController.updateMealPlan));
 
 export default router;

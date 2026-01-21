@@ -41,7 +41,7 @@ const verifyCallback = (req, resolve, reject) => async (err, user, info) => {
     // Return standard Zenova error format directly
     return resolve({
       success: false,
-       data:{},
+      data: {},
       message: 'Unauthorized access',
       status: httpStatus.UNAUTHORIZED,
     });
@@ -56,7 +56,8 @@ const verifyCallback = (req, resolve, reject) => async (err, user, info) => {
 
 // ✅ Main authentication middleware
 const authenticate = () => async (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
+  const token = req.cookies?.accessToken || req.headers.authorization?.split(" ")[1];
+  console.log(token);
 
 
   const result = await new Promise((resolve, reject) => {
@@ -71,7 +72,7 @@ const authenticate = () => async (req, res, next) => {
   if (result && result.status) {
     return res.status(result.status).json({
       success: result.success,
-       data:{},
+      data: {},
       message: result.message,
     });
   }
@@ -80,6 +81,6 @@ const authenticate = () => async (req, res, next) => {
   next();
 };
 
-export default authenticate; 
+export default authenticate;
 
 

@@ -29,6 +29,14 @@ jobs:
     needs: build
 
     steps:
+    - name: Delete Old docker container
+      run: sudo docker rm -f zenova-api || true
+    
+    - name: Delete Old docker Image
+      run:  sudo docker rmi -f moinaknaskar/zenova:latest || true
+
+    - name: Reset docker history
+      run:  sudo docker system prune -f || true
     - name: Pull Docker image
       run: sudo docker pull moinaknaskar/zenova:latest
     - name: Delete Old docker container
