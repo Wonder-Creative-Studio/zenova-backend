@@ -2,9 +2,10 @@
 import SleepLog from '~/models/sleepLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
-import APIError from '~/utils/apiError'; 
+import APIError from '~/utils/apiError';
 import questService from '~/services/questService';
 import streakService from '~/services/streakService';
+import SleepGoal from '~/models/sleepGoalModel';
 
 export const setSleepGoal = async (req, res) => {
   try {
@@ -14,41 +15,39 @@ export const setSleepGoal = async (req, res) => {
     if (!recommendedDurationMin || !regularSleptAt || !regularWokeUpAt) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'Recommended duration, regular sleep time, and wake-up time are required',
       });
     }
 
     // Update user's sleep goal
-    const user = await User.findByIdAndUpdate(
-      userId,
+    const sleepGoal = await SleepGoal.create(
       {
-        sleepGoal: {
-          recommendedDurationMin,
-          regularSleptAt,
-          regularWokeUpAt,
-        }
-      },
-      { new: true }
+        userId,
+
+        recommendedDurationMin,
+        regularSleptAt,
+        regularWokeUpAt,
+
+      }
     );
 
-    if (!user) {
+    if (!sleepGoal) {
       return res.status(404).json({
         success: false,
-         data:{},
-        message: 'User not found',
+        data: {},
+        message: 'Sleep goal not found',
       });
     }
-
     return res.json({
       success: true,
-       user,
+      data: sleepGoal,
       message: 'Sleep goal set successfully',
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to set sleep goal',
     });
   }
@@ -62,7 +61,7 @@ export const logSleep = async (req, res) => {
     if (!durationMin || !sleptAt || !wokeUpAt) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'Duration, sleep time, and wake-up time are required',
       });
     }
@@ -79,7 +78,7 @@ export const logSleep = async (req, res) => {
     const savedLog = await sleepLog.save();
 
     // Award NovaCoins (1 coin per 30 minutes)
-    const novaCoinsEarned = Math.floor(durationMin / 30); 
+    const novaCoinsEarned = Math.floor(durationMin / 30);
 
     const user = await User.findById(userId);
     const streakDays = await streakService.updateStreak(userId);
@@ -94,13 +93,13 @@ export const logSleep = async (req, res) => {
 
     return res.json({
       success: true,
-       data:{ savedLog, novaCoinsEarned },
+      data: { savedLog, novaCoinsEarned },
       message: 'Sleep logged successfully',
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to log sleep',
     });
   }
@@ -151,7 +150,7 @@ export const getSleepProgress = async (req, res) => {
 
     return res.json({
       success: true,
-       data:{
+      data: {
         currentSleepDuration,
         avgSleepDuration,
         dailyData,
@@ -164,7 +163,7 @@ export const getSleepProgress = async (req, res) => {
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to fetch sleep progress',
     });
   }
