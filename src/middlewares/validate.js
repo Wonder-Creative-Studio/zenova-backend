@@ -24,7 +24,7 @@ const validate = (schema) => (req, res, next) => {
     const message = result.error.details[0].message.replace(/["]/g, '');
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: message,
     });
   }
