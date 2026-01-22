@@ -1,8 +1,8 @@
 import Otp from '../models/otpModel';
 import User from '../models/userModel';
 import { generateAndStoreOtp } from '../utils/otp.js';
-import { sendOtpEmail } from '~/services/emailService/index.js'; 
-import tokenService from '~/services/tokenService';  
+import { sendOtpEmail } from '~/services/emailService/index.js';
+import tokenService from '~/services/tokenService';
 import { nanoid } from 'nanoid';
 
 // Helper for consistent success response
@@ -39,7 +39,7 @@ const errorResponse = (res, statusCode, message) => {
 //       const userName = normalizedEmail 
 //         ? normalizedEmail.split('@')[0] 
 //         : `user_${Date.now()}`;
-      
+
 //       user = new User({
 //         fullName: userName,
 //         userName,
@@ -85,8 +85,8 @@ export const sendOtp = async (req, res, next) => {
 
     if (!user) {
       // Create user ONLY if not found
-      const userName = `user_${nanoid(6)}`;  
-      
+      const userName = `user_${nanoid(6)}`;
+
       user = new User({
         fullName: userName,
         userName,
@@ -99,7 +99,7 @@ export const sendOtp = async (req, res, next) => {
       await user.save();
     }
 
-     // ✅ DELETE OLD OTPs for this user (critical!)
+    // ✅ DELETE OLD OTPs for this user (critical!)
     await Otp.deleteMany({ user: user._id, type });
 
     const identifier = normalizedEmail || phone;
@@ -165,26 +165,36 @@ export const verifyOtp = async (req, res, next) => {
 
     // FIX: Determine onboarding status using new flag
     const isNewUser = !user.isOnboarded;
+    const options = {
+      httpOnly: false,
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000
 
-    return res.json({
-      success: true,
-      data: {
-        userId: user._id,
-        isNewUser,
-        user: {
-          id: user._id,
-          fullName: user.fullName,
-          userName: user.userName,
-          email: user.email,
-          phone: user.phone,
-          avatarUrl: user.avatarUrl,
+
+    }
+
+    return res.
+      cookie('refreshToken', tokens.refreshToken.token, options).
+      cookie('accessToken', tokens.accessToken.token, options).
+      json({
+        success: true,
+        data: {
+          userId: user._id,
+          isNewUser,
+          user: {
+            id: user._id,
+            fullName: user.fullName,
+            userName: user.userName,
+            email: user.email,
+            phone: user.phone,
+            avatarUrl: user.avatarUrl,
+          },
+          tokens,
         },
-        tokens,
-      },
-      message: isNewUser
-        ? 'Account created. Complete onboarding.'
-        : 'Login successful.',
-    });
+        message: isNewUser
+          ? 'Account created. Complete onboarding.'
+          : 'Login successful.',
+      });
 
   } catch (err) {
     next(err);
@@ -324,7 +334,7 @@ export const resetPassword = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-}; 
+};
 
 // src/controllers/otpController.js
 export const signupWithOtp = async (req, res, next) => {
@@ -337,15 +347,15 @@ export const signupWithOtp = async (req, res, next) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ 
-      $or: [{ email }, { phone }] 
+    const existingUser = await User.findOne({
+      $or: [{ email }, { phone }]
     });
     if (existingUser) {
       return errorResponse(res, 400, 'User already exists. Please log in.');
     }
 
     // Verify OTP
-    const otpDoc = await Otp.findOne({ 
+    const otpDoc = await Otp.findOne({
       $or: [{ email }, { phone }],
       otp,
       type: 'EMAIL_VERIFICATION',
@@ -370,7 +380,7 @@ export const signupWithOtp = async (req, res, next) => {
     const user = await newUser.save();
 
     // Delete OTP
-    await Otp.deleteMany({ 
+    await Otp.deleteMany({
       $or: [{ email }, { phone }],
       type: 'EMAIL_VERIFICATION'
     });

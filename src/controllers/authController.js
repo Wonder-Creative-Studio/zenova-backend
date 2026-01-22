@@ -202,12 +202,17 @@ export const updateMe = async (req, res) => {
 
 export const signout = async (req, res) => {
   try {
-    await Token.revokeToken(req.body.refreshToken, config.TOKEN_TYPES.REFRESH);
-    return res.json({
-      success: true,
-      data: {},
-      message: 'Signout successful'
-    });
+    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    console.log(refreshToken);
+    await Token.revokeToken(refreshToken, config.TOKEN_TYPES.REFRESH);
+    return res.
+      clearCookie("accessToken")
+      .clearCookie("refreshToken")
+      .json({
+        success: true,
+        data: {},
+        message: 'Signout successful'
+      });
   } catch (err) {
     return res.status(400).json({
       success: false,
