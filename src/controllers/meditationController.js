@@ -3,9 +3,10 @@ import MeditationLog from '~/models/meditationLogModel';
 import MeditationPlan from '~/models/meditationPlanModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
-import APIError from '~/utils/apiError'; 
+import APIError from '~/utils/apiError';
 import questService from '~/services/questService';
 import streakService from '~/services/streakService';
+import MoodLog from '~/models/moodLogModel';
 
 export const logMeditation = async (req, res) => {
   try {
@@ -15,7 +16,7 @@ export const logMeditation = async (req, res) => {
     if (!durationMin || durationMin < 1) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'Duration must be at least 1 minute',
       });
     }
@@ -27,7 +28,7 @@ export const logMeditation = async (req, res) => {
       mood: mood || 'Neutral',
     });
 
-   const savedLog = await meditationLog.save();
+    const savedLog = await meditationLog.save();
 
 
     // ✅ Check for pending mood suggestion
@@ -53,9 +54,9 @@ export const logMeditation = async (req, res) => {
       await pendingMoodLog.save();
     }
 
-    const novaCoinsEarned = Math.floor(durationMin / 5) + extraCoins; 
+    const novaCoinsEarned = Math.floor(durationMin / 5) + extraCoins;
 
-       // Update streak (if needed — based on your streak logic)
+    // Update streak (if needed — based on your streak logic)
     const user = await User.findById(userId);
     // const streakDays = user.streakDays + 1;  // Your streak logic
     const streakDays = await streakService.updateStreak(userId);
@@ -70,13 +71,13 @@ export const logMeditation = async (req, res) => {
 
     return res.json({
       success: true,
-       data:{ savedLog, novaCoinsEarned, extraCoins },
+      data: { savedLog, novaCoinsEarned, extraCoins },
       message: 'Meditation session logged successfully',
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to log meditation',
     });
   }
@@ -127,7 +128,7 @@ export const getMeditationProgress = async (req, res) => {
 
     return res.json({
       success: true,
-       data:{
+      data: {
         currentSessionTime,
         avgSessionTime,
         dailyData,
@@ -140,7 +141,7 @@ export const getMeditationProgress = async (req, res) => {
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to fetch meditation progress',
     });
   }
@@ -157,7 +158,7 @@ export const generateMeditationPlan = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-         data:{},
+        data: {},
         message: 'User not found',
       });
     }
@@ -186,7 +187,7 @@ export const generateMeditationPlan = async (req, res) => {
     if (existingPlan) {
       return res.json({
         success: true,
-         data:{ existingPlan },
+        data: { existingPlan },
         message: 'Meditation plan already exists for this date',
       });
     }
@@ -201,13 +202,13 @@ export const generateMeditationPlan = async (req, res) => {
 
     return res.json({
       success: true,
-       data:{ savedPlan },
+      data: { savedPlan },
       message: 'Meditation plan generated successfully',
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to generate meditation plan',
     });
   }
