@@ -70,7 +70,7 @@ const userSchema = new mongoose.Schema(
     },
     dob: {
       type: Date, // date of birth
-    }, 
+    },
     languages: [String], // e.g., ['Bengali', 'English']
     syncAppleHealth: {
       type: Boolean,
@@ -93,12 +93,26 @@ const userSchema = new mongoose.Schema(
     lifestyleState: String, // 'chaotic', 'trying_to_get_back', 'on_off', 'balanced'
     barriers: [String], // e.g., ['too_much_work', 'lack_of_structure']
 
-    stepGoal:{
-      type:Number,
-    }, 
+    stepGoal: {
+      type: Number,
+    },
+    focusGoal: {
+      dailyScreenTimeLimitMin: { type: Number, default: 150 },
+      focusModeTargetHours: { type: Number, default: 2 },
+      reminderEnabled: { type: Boolean, default: true },
+    },
+    // Gamification fields
+    novaCoins: {
+      type: Number,
+      default: 0,
+    },
+    streakDays: {
+      type: Number,
+      default: 0,
+    },
     level: {
-  type: Number,
-  default: 1,
+      type: Number,
+      default: 1,
     },
     badges: [{
       name: String,        // "Streak Master"
@@ -111,57 +125,57 @@ const userSchema = new mongoose.Schema(
         ref: 'quests',
       },
       completedAt: Date,
-    }], 
+    }],
     lastStreakDate: {
       type: Date,
       default: null,
     },
 
     chats: [{
-  role: {
-    type: String,
-    enum: ['user', 'assistant'],
-    required: true,
-  },
-  content: {
-    type: String,
-    required: true,
-  },
-  bot: {
-    type: String, // 'calia', 'noura'
-    default: 'calia',
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now,
+      role: {
+        type: String,
+        enum: ['user', 'assistant'],
+        required: true,
+      },
+      content: {
+        type: String,
+        required: true,
+      },
+      bot: {
+        type: String, // 'calia', 'noura'
+        default: 'calia',
+      },
+      timestamp: {
+        type: Date,
+        default: Date.now,
+      },
+    }],
+    lastActiveAt: {
+      type: Date,
+      default: Date.now,
     },
-  }],
-  lastActiveAt: {
-  type: Date,
-  default: Date.now,
-  },
-  aiPreferences: {
-  calia: {
-    gender: { type: String, enum: ['Male', 'Female'], default: 'Female' },
-    tonality: { type: String, enum: ['Energetic', 'Insightful', 'Calm'], default: 'Calm' },
-  },
-  noura: {
-    gender: { type: String, enum: ['Male', 'Female'], default: 'Female' },
-    tonality: { type: String, enum: ['Energetic', 'Insightful', 'Calm'], default: 'Insightful' },
-  },
-  aeron: {
-    gender: { type: String, enum: ['Male', 'Female'], default: 'Male' },
-    tonality: { type: String, enum: ['Energetic', 'Insightful', 'Calm'], default: 'Energetic' },
+    aiPreferences: {
+      calia: {
+        gender: { type: String, enum: ['Male', 'Female'], default: 'Female' },
+        tonality: { type: String, enum: ['Energetic', 'Insightful', 'Calm'], default: 'Calm' },
+      },
+      noura: {
+        gender: { type: String, enum: ['Male', 'Female'], default: 'Female' },
+        tonality: { type: String, enum: ['Energetic', 'Insightful', 'Calm'], default: 'Insightful' },
+      },
+      aeron: {
+        gender: { type: String, enum: ['Male', 'Female'], default: 'Male' },
+        tonality: { type: String, enum: ['Energetic', 'Insightful', 'Calm'], default: 'Energetic' },
+      },
     },
-  },
 
     roles: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'roles',
       },
-    ], 
-	isVerified: {
+    ],
+    isVerified: {
       type: Boolean,
       default: false
     }

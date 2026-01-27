@@ -4,8 +4,7 @@ import MeditationPlan from '~/models/meditationPlanModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import questService from '~/services/questService';
-import streakService from '~/services/streakService';
+import gamificationService from '~/services/gamificationService';
 import MoodLog from '~/models/moodLogModel';
 
 export const logMeditation = async (req, res) => {
@@ -30,8 +29,7 @@ export const logMeditation = async (req, res) => {
 
     const savedLog = await meditationLog.save();
 
-
-    // ✅ Check for pending mood suggestion
+    // Check for pending mood suggestion
     const today = new Date();
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
@@ -45,36 +43,37 @@ export const logMeditation = async (req, res) => {
 
     let extraCoins = 0;
     if (pendingMoodLog) {
-      // Award extra coins
       extraCoins = pendingMoodLog.suggestedActivity.reward;
-
-      // Mark as completed
       pendingMoodLog.isSuggestionCompleted = true;
       pendingMoodLog.completedAt = new Date();
       await pendingMoodLog.save();
     }
 
-    const novaCoinsEarned = Math.floor(durationMin / 5) + extraCoins;
-
-    // Update streak (if needed — based on your streak logic)
-    const user = await User.findById(userId);
-    // const streakDays = user.streakDays + 1;  // Your streak logic
-    const streakDays = await streakService.updateStreak(userId);
-    await User.findByIdAndUpdate(userId, { streakDays });
-
-    // ✅ ADD QUEST CHECK
-    await questService.checkQuestCompletion(userId, {
-      streakDays,
-      meditationLogs: 1,
-      totalNovaCoins: user.novaCoins + novaCoinsEarned, // e.g., Math.floor(durationMin / 5)
+    // Process gamification
+    const gamificationResult = await gamificationService.processActivity(userId, {
+      type: 'meditation',
+      logId: savedLog._id,
+      logModel: 'meditationLogs',
+      data: { durationMin }
     });
 
     return res.json({
       success: true,
-      data: { savedLog, novaCoinsEarned, extraCoins },
+      data: {
+        savedLog,
+        novaCoinsEarned: gamificationResult.coinsEarned + extraCoins,
+        extraCoins,
+        bonusCoins: gamificationResult.bonusCoins,
+        totalCoins: gamificationResult.totalCoins,
+        streak: gamificationResult.streak,
+        level: gamificationResult.level,
+        questsCompleted: gamificationResult.questsCompleted,
+        badgesUnlocked: gamificationResult.badgesUnlocked
+      },
       message: 'Meditation session logged successfully',
     });
   } catch (err) {
+    console.error('Meditation log error:', err);
     return res.status(400).json({
       success: false,
       data: {},
@@ -86,7 +85,7 @@ export const logMeditation = async (req, res) => {
 export const getMeditationProgress = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { period } = req.query; // 'today', 'weekly', 'monthly'
+    const { period } = req.query;
 
     let start, end;
     const now = new Date();
@@ -102,7 +101,6 @@ export const getMeditationProgress = async (req, res) => {
       start = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
       end = today;
     } else {
-      // Default to weekly
       start = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       end = today;
     }
@@ -112,18 +110,14 @@ export const getMeditationProgress = async (req, res) => {
       loggedAt: { $gte: start, $lte: end },
     }).sort({ loggedAt: 1 });
 
-    // Format for chart (daily values)
     const dailyData = {};
     logs.forEach(log => {
       const dateStr = log.loggedAt.toISOString().split('T')[0];
       dailyData[dateStr] = log.durationMin;
     });
 
-    // Get latest log
     const latestLog = logs[logs.length - 1];
     const currentSessionTime = latestLog ? latestLog.durationMin : 0;
-
-    // Calculate average session time
     const avgSessionTime = logs.length ? Math.round(logs.reduce((sum, log) => sum + log.durationMin, 0) / logs.length) : 0;
 
     return res.json({
@@ -147,7 +141,6 @@ export const getMeditationProgress = async (req, res) => {
   }
 };
 
-// Generate AI-recommended session
 export const generateMeditationPlan = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -163,7 +156,6 @@ export const generateMeditationPlan = async (req, res) => {
       });
     }
 
-    // Simple logic: Recommend based on user’s lifestyle
     let recommendedSession;
     if (user.lifestyle === 'very_active') {
       recommendedSession = {
@@ -218,4 +210,4 @@ export default {
   logMeditation,
   getMeditationProgress,
   generateMeditationPlan
-}; 
+};

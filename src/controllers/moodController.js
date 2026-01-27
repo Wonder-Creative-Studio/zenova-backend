@@ -2,9 +2,9 @@
 import MoodLog from '~/models/moodLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
-import APIError from '~/utils/apiError'; 
-import questService from '~/services/questService';
-
+import APIError from '~/utils/apiError';
+import gamificationService from '~/services/gamificationService';
+import NovaTransaction from '~/models/novaTransactionModel';
 
 // AI Suggestions Map (Rule-Based MVP)
 const MOOD_SUGGESTIONS = {
@@ -41,7 +41,7 @@ const MOOD_SUGGESTIONS = {
     type: 'manual',
     durationMin: 5,
     reward: 20,
-    description: 'Reflect on what you’re grateful for.'
+    description: "Reflect on what you're grateful for."
   }
 };
 
@@ -50,13 +50,10 @@ export const logMood = async (req, res) => {
     const userId = req.user.id;
     const { mood } = req.body;
 
-        // In logMood function
-    console.log('MoodLog schema:', MoodLog.schema.paths.suggestedActivity);
-    console.log('Suggestion object:', suggestion);
     if (!mood) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'Mood is required',
       });
     }
@@ -74,7 +71,7 @@ export const logMood = async (req, res) => {
     if (existingLog) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'Mood already logged today',
       });
     }
@@ -84,43 +81,49 @@ export const logMood = async (req, res) => {
     const moodLog = new MoodLog({
       userId,
       mood,
-      suggestedActivity: suggestion, // ← Save suggestion
+      suggestedActivity: suggestion,
     });
 
-    const savedLog = await moodLog.save(); 
+    const savedLog = await moodLog.save();
 
-    const user = await User.findById(userId);
-    // Mood doesn't affect streak → no streak update
-    await questService.checkQuestCompletion(userId, {
-      moodLogs: 1,
-      totalNovaCoins: user.novaCoins + 20, // 20 = mood coins
+    // Process gamification (coins, stats, quests, badges)
+    const gamificationResult = await gamificationService.processActivity(userId, {
+      type: 'mood',
+      logId: savedLog._id,
+      logModel: 'moodLogs',
+      data: { mood }
     });
 
     return res.json({
       success: true,
-       data:{
+      data: {
         savedLog,
-        novaCoinsEarned: 20,
         suggestion,
-        totalCoins: 20 + suggestion.reward
+        novaCoinsEarned: gamificationResult.coinsEarned,
+        bonusCoins: gamificationResult.bonusCoins,
+        totalCoinsEarned: gamificationResult.totalCoinsEarned,
+        totalCoins: gamificationResult.totalCoins,
+        streak: gamificationResult.streak,
+        level: gamificationResult.level,
+        questsCompleted: gamificationResult.questsCompleted,
+        badgesUnlocked: gamificationResult.badgesUnlocked
       },
       message: 'Mood logged successfully',
     });
   } catch (err) {
+    console.error('Mood log error:', err);
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to log mood',
     });
   }
 };
 
-// ... rest of controller
-
 export const getMoodSummary = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { period } = req.query; // 'today', 'weekly', 'monthly'
+    const { period } = req.query;
 
     let start, end;
     const now = new Date();
@@ -136,7 +139,6 @@ export const getMoodSummary = async (req, res) => {
       start = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
       end = today;
     } else {
-      // Default to weekly
       start = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       end = today;
     }
@@ -146,20 +148,18 @@ export const getMoodSummary = async (req, res) => {
       loggedAt: { $gte: start, $lte: end },
     }).sort({ loggedAt: 1 });
 
-    // Format for summary (daily values)
     const dailyData = {};
     logs.forEach(log => {
       const dateStr = log.loggedAt.toISOString().split('T')[0];
       dailyData[dateStr] = log.mood;
     });
 
-    // Get latest log
     const latestLog = logs[logs.length - 1];
     const currentMood = latestLog ? latestLog.mood : 'Neutral';
 
     return res.json({
       success: true,
-       data:{
+      data: {
         currentMood,
         dailyData,
         period: period || 'weekly',
@@ -171,8 +171,70 @@ export const getMoodSummary = async (req, res) => {
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to fetch mood summary',
+    });
+  }
+};
+
+export const getTodayMood = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+    const moodLog = await MoodLog.findOne({
+      userId,
+      loggedAt: { $gte: start, $lte: end },
+    });
+    const coinEarned = await NovaTransaction.findOne({
+      userId,
+      type: 'mood',
+      logId: moodLog._id,
+    });
+    return res.json({
+      success: true,
+      data: {
+        moodLog,
+      },
+      message: 'Today mood fetched successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to fetch today mood',
+    });
+  }
+};
+
+export const getMoodProgress = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { limit = 7 } = req.query;
+
+    const logs = await MoodLog.find({ userId })
+      .sort({ loggedAt: -1 })
+      .limit(parseInt(limit))
+      .select('mood loggedAt');
+
+    const progress = logs.map(log => ({
+      mood: log.mood,
+      loggedAt: log.loggedAt
+    }));
+
+    return res.json({
+      success: true,
+      data: progress,
+      message: 'Mood progress fetched successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: [],
+      message: err.message || 'Failed to fetch mood progress',
     });
   }
 };
@@ -180,4 +242,6 @@ export const getMoodSummary = async (req, res) => {
 export default {
   logMood,
   getMoodSummary,
+  getTodayMood,
+  getMoodProgress
 };

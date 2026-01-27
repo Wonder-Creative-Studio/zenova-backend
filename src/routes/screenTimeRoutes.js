@@ -10,5 +10,6 @@ const router = Router();
 router.post('/goal', authenticate(), validate(screenTimeValidation.setFocusGoal), catchAsync(screenTimeController.setFocusGoal));
 router.post('/log', authenticate(), validate(screenTimeValidation.logScreenTime), catchAsync(screenTimeController.logScreenTime));
 router.get('/progress', authenticate(), validate(screenTimeValidation.getScreenTimeProgress), catchAsync(screenTimeController.getScreenTimeProgress));
+router.get('/focus-progress', authenticate(), catchAsync(screenTimeController.getFocusProgress));
 
 export default router;

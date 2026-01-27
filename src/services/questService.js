@@ -2,103 +2,175 @@
 import { Parser } from 'expr-eval';
 import Quest from '~/models/questModel';
 import User from '~/models/userModel';
+import novaCoinsService from '~/services/novaCoinsService';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 
 const parser = new Parser();
 
 /**
- * Evaluate if user qualifies for a quest
+ * Check quest completion using pre-computed stats
  * @param {ObjectId} userId
- * @param {Object} updatedStats - e.g., { streakDays: 7, mealLogs: 1, totalNovaCoins: 105 }
+ * @param {Object} params
+ * @param {Object} params.stats - UserStats object with totals, streaks, thisWeek
+ * @param {Number} params.streakDays - Current streak
  */
-export const checkQuestCompletion = async (userId, updatedStats = {}) => {
+export const checkQuestCompletion = async (userId, params = {}) => {
   try {
-    const user = await User.findById(userId).lean(); // ← Fetch once, use lean() for perf
+    const { stats, streakDays } = params;
+
+    const user = await User.findById(userId).select('questsCompleted novaCoins');
     if (!user) {
       throw new APIError('User not found', httpStatus.NOT_FOUND);
     }
 
     const quests = await Quest.find({ isActive: true });
 
-    let userUpdated = false;
-    const updatedUser = { ...user }; // Work on a copy
+    const completedQuests = [];
+    let totalBonusCoins = 0;
+
+    // Build evaluation context from stats
+    const context = buildContext(stats, streakDays);
 
     for (const quest of quests) {
-      // Skip if already completed
-      const alreadyCompleted = user.questsCompleted.some(
-        (q) => q.questId?.toString() === quest._id.toString()
-      );
-      if (alreadyCompleted) continue;
-
-      // Build evaluation context
-      const context = {
-        streakDays: updatedStats.streakDays !== undefined 
-          ? updatedStats.streakDays 
-          : user.streakDays,
-        mealLogs: updatedStats.mealLogs || 0,
-        workoutLogs: updatedStats.workoutLogs || 0,
-        meditationLogs: updatedStats.meditationLogs || 0,
-        yogaLogs: updatedStats.yogaLogs || 0,
-        sleepLogs: updatedStats.sleepLogs || 0,
-        moodLogs: updatedStats.moodLogs || 0,
-        menstrualLogs: updatedStats.menstrualLogs || 0,
-        screenTimeLogs: updatedStats.screenTimeLogs || 0,
-        totalNovaCoins: updatedStats.totalNovaCoins !== undefined
-          ? updatedStats.totalNovaCoins
-          : user.novaCoins,
-      };
+      // Skip if already completed (for milestone quests)
+      if (quest.resetPeriod === 'none') {
+        const alreadyCompleted = (user.questsCompleted || []).some(
+          (q) => q.questId?.toString() === quest._id.toString()
+        );
+        if (alreadyCompleted) continue;
+      }
 
       try {
         const conditionMet = parser.parse(quest.condition).evaluate(context);
 
         if (conditionMet) {
-          // Update coins
+          // Award coins
           if (quest.rewardCoins > 0) {
-            updatedUser.novaCoins = (updatedUser.novaCoins || 0) + quest.rewardCoins;
+            await novaCoinsService.awardCoins(userId, {
+              amount: quest.rewardCoins,
+              type: 'quest_bonus',
+              category: 'quest',
+              refId: quest._id,
+              refModel: 'quests',
+              description: `Quest completed: ${quest.title}`,
+              metadata: { questId: quest._id }
+            });
+
+            totalBonusCoins += quest.rewardCoins;
           }
 
-          // Add badge
-          if (quest.badge) {
-            updatedUser.badges = updatedUser.badges || [];
-            updatedUser.badges.push({
-              name: quest.badge.name,
-              icon: quest.badge.icon,
-              unlockedAt: new Date(),
+          // Add badge if any
+          if (quest.badge?.name) {
+            await User.findByIdAndUpdate(userId, {
+              $push: {
+                badges: {
+                  name: quest.badge.name,
+                  icon: quest.badge.icon,
+                  unlockedAt: new Date(),
+                }
+              }
             });
           }
 
           // Mark quest as completed
-          updatedUser.questsCompleted = updatedUser.questsCompleted || [];
-          updatedUser.questsCompleted.push({
-            questId: quest._id,
-            completedAt: new Date(),
+          await User.findByIdAndUpdate(userId, {
+            $push: {
+              questsCompleted: {
+                questId: quest._id,
+                completedAt: new Date(),
+                coinsAwarded: quest.rewardCoins
+              }
+            }
           });
 
-          userUpdated = true;
+          completedQuests.push({
+            id: quest._id,
+            title: quest.title,
+            description: quest.description,
+            rewardCoins: quest.rewardCoins,
+            badge: quest.badge
+          });
         }
       } catch (err) {
         console.error(`Quest condition error (ID: ${quest._id}):`, err.message);
       }
     }
 
-    // Update level
-    const newLevel = Math.floor((updatedUser.novaCoins || 0) / 200) + 1;
-    if ((updatedUser.level || 1) !== newLevel) {
-      updatedUser.level = newLevel;
-      userUpdated = true;
-    }
-
-    // Save only if changes occurred
-    if (userUpdated) {
-      await User.findByIdAndUpdate(userId, updatedUser, { new: true });
-    }
+    return {
+      completed: completedQuests,
+      bonusCoins: totalBonusCoins
+    };
   } catch (err) {
     console.error('Quest service error:', err);
-    // Never throw — gamification is non-critical
+    return { completed: [], bonusCoins: 0 };
   }
 };
 
+/**
+ * Get user's available quests with progress
+ */
+export const getUserQuests = async (userId) => {
+  const [user, quests, stats] = await Promise.all([
+    User.findById(userId).select('questsCompleted'),
+    Quest.find({ isActive: true }),
+    require('~/services/statsService').getStats(userId)
+  ]);
+
+  const completedIds = new Set(
+    (user?.questsCompleted || []).map(q => q.questId?.toString())
+  );
+
+  const streakDays = stats?.streaks?.current || 0;
+  const context = buildContext(stats, streakDays);
+
+  return quests.map(quest => {
+    const isCompleted = completedIds.has(quest._id.toString());
+
+    return {
+      id: quest._id,
+      title: quest.title,
+      description: quest.description,
+      category: quest.category,
+      rewardCoins: quest.rewardCoins,
+      badge: quest.badge,
+      isCompleted,
+    };
+  });
+};
+
+/**
+ * Build context object for condition evaluation
+ */
+function buildContext(stats, streakDays) {
+  return {
+    // From UserStats.totals
+    totals: stats?.totals || {},
+
+    // From UserStats.streaks
+    streaks: {
+      current: streakDays || stats?.streaks?.current || 0,
+      longest: stats?.streaks?.longest || 0
+    },
+
+    // From UserStats.thisWeek
+    thisWeek: stats?.thisWeek || {},
+
+    // Flat access for backward compatibility
+    streakDays: streakDays || stats?.streaks?.current || 0,
+    mealLogs: stats?.totals?.mealLogs || 0,
+    workoutLogs: stats?.totals?.workoutLogs || 0,
+    meditationLogs: stats?.totals?.meditationLogs || 0,
+    yogaLogs: stats?.totals?.yogaLogs || 0,
+    sleepLogs: stats?.totals?.sleepLogs || 0,
+    moodLogs: stats?.totals?.moodLogs || 0,
+    menstrualLogs: stats?.totals?.menstrualLogs || 0,
+    screenTimeLogs: stats?.totals?.screenTimeLogs || 0,
+    totalNovaCoins: stats?.totals?.coinsEarned || 0,
+  };
+}
+
 export default {
   checkQuestCompletion,
+  getUserQuests
 };

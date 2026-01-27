@@ -6,7 +6,8 @@
 		"start": "npm run dev",
 		"dev": "cross-env NODE_ENV=development nodemon src --exec babel-node",
 		"build": "babel src -d dist",
-		"prod": "pm2-runtime start ecosystem.config.js --env production"
+		"prod": "pm2-runtime start ecosystem.config.js --env production",
+		"seed:gamification": "cross-env NODE_ENV=development babel-node src/scripts/seedGamification.js"
 	},
 	"dependencies": {
 		"@babel/runtime": "^7.15.3",

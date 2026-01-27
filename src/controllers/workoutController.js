@@ -5,12 +5,10 @@ import WorkoutLog from '~/models/workoutLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import questService from '~/services/questService';
-import streakService from '~/services/streakService';
+import gamificationService from '~/services/gamificationService';
 
 // Helper: Calculate calories burned for an exercise
 const calculateExerciseCalories = (durationMin, estimatedBurnPerMin, weightKg = 70) => {
-  // Formula: Duration × Burn per min × Weight factor (0.04)
   return Math.round(durationMin * estimatedBurnPerMin * (weightKg / 70));
 };
 
@@ -27,13 +25,13 @@ export const getExerciseLibrary = async (req, res) => {
 
     return res.json({
       success: true,
-      data:{exercises},
+      data: { exercises },
       message: 'Exercise library fetched successfully',
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to fetch exercise library',
     });
   }
@@ -47,23 +45,21 @@ export const createWorkoutPlan = async (req, res) => {
     if (!name || !type || !exercises || exercises.length === 0) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'Name, type, and at least one exercise are required',
       });
     }
 
-    // Validate exercises
     const exerciseIds = exercises.map(e => e.exerciseId);
     const validExercises = await Exercise.find({ _id: { $in: exerciseIds } });
     if (validExercises.length !== exerciseIds.length) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'One or more exercises are invalid',
       });
     }
 
-    // Calculate total duration and calories
     let totalDurationMin = 0;
     let totalCaloriesBurned = 0;
 
@@ -71,7 +67,7 @@ export const createWorkoutPlan = async (req, res) => {
       const foundExercise = validExercises.find(e => e._id.toString() === exercise.exerciseId);
       const durationMin = exercise.durationMin || foundExercise.durationMin;
       const estimatedBurnPerMin = foundExercise.estimatedBurnPerMin;
-      const caloriesBurned = calculateExerciseCalories(durationMin, estimatedBurnPerMin, 70); // Use user weight later
+      const caloriesBurned = calculateExerciseCalories(durationMin, estimatedBurnPerMin, 70);
 
       totalDurationMin += durationMin;
       totalCaloriesBurned += caloriesBurned;
@@ -98,13 +94,13 @@ export const createWorkoutPlan = async (req, res) => {
 
     return res.json({
       success: true,
-       data:{savedPlan},
+      data: { savedPlan },
       message: 'Workout plan created successfully',
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to create workout plan',
     });
   }
@@ -118,7 +114,7 @@ export const logWorkout = async (req, res) => {
     if (!workoutPlanId || !exercisesCompleted || exercisesCompleted.length === 0) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'Workout plan ID and at least one exercise completed are required',
       });
     }
@@ -127,31 +123,32 @@ export const logWorkout = async (req, res) => {
     if (!workoutPlan || workoutPlan.userId.toString() !== userId) {
       return res.status(404).json({
         success: false,
-         data:{},
+        data: {},
         message: 'Workout plan not found or access denied',
       });
     }
 
-    // Validate exercises
     const exerciseIds = exercisesCompleted.map(e => e.exerciseId);
     const validExercises = await Exercise.find({ _id: { $in: exerciseIds } });
     if (validExercises.length !== exerciseIds.length) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'One or more exercises are invalid',
       });
     }
 
-    // Calculate calories for each exercise
     let totalCaloriesBurned = 0;
+    let totalDurationMin = 0;
+
     const completedExercises = exercisesCompleted.map(exercise => {
       const foundExercise = validExercises.find(e => e._id.toString() === exercise.exerciseId);
       const durationMin = exercise.durationMin;
       const estimatedBurnPerMin = foundExercise.estimatedBurnPerMin;
-      const caloriesBurned = calculateExerciseCalories(durationMin, estimatedBurnPerMin, 70); // Use user weight later
+      const caloriesBurned = calculateExerciseCalories(durationMin, estimatedBurnPerMin, 70);
 
       totalCaloriesBurned += caloriesBurned;
+      totalDurationMin += durationMin;
 
       return {
         exerciseId: exercise.exerciseId,
@@ -173,28 +170,36 @@ export const logWorkout = async (req, res) => {
 
     const savedLog = await workoutLog.save();
 
-    // Award NovaCoins (optional)
-    const novaCoinsEarned = Math.floor(totalCaloriesBurned / 100); // 1 coin per 100 kcal 
-
-    const user = await User.findById(userId);
-    const streakDays = await streakService.updateStreak(userId);
-    await User.findByIdAndUpdate(userId, { streakDays });
-
-    await questService.checkQuestCompletion(userId, {
-      streakDays,
-      workoutLogs: 1,
-      totalNovaCoins: user.novaCoins + novaCoinsEarned, // from your logic
+    // Process gamification
+    const gamificationResult = await gamificationService.processActivity(userId, {
+      type: 'workout',
+      logId: savedLog._id,
+      logModel: 'workoutLogs',
+      data: {
+        caloriesBurned: totalCaloriesBurned,
+        durationMin: totalDurationMin
+      }
     });
 
     return res.json({
       success: true,
-       data:{ savedLog, novaCoinsEarned },
+      data: {
+        savedLog,
+        novaCoinsEarned: gamificationResult.coinsEarned,
+        bonusCoins: gamificationResult.bonusCoins,
+        totalCoins: gamificationResult.totalCoins,
+        streak: gamificationResult.streak,
+        level: gamificationResult.level,
+        questsCompleted: gamificationResult.questsCompleted,
+        badgesUnlocked: gamificationResult.badgesUnlocked
+      },
       message: 'Workout logged successfully',
     });
   } catch (err) {
+    console.error('Workout log error:', err);
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to log workout',
     });
   }
@@ -242,7 +247,7 @@ export const getWorkoutProgress = async (req, res) => {
 
     return res.json({
       success: true,
-       data:{
+      data: {
         currentCalories,
         dailyData,
         period: period || 'weekly',
@@ -254,23 +259,23 @@ export const getWorkoutProgress = async (req, res) => {
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to fetch workout progress',
     });
   }
-}; 
+};
 
 export const createExercise = async (req, res) => {
   try {
-    const { 
-      name, 
-      category, 
-      durationMin, 
-      targetAreas, 
-      videoUrl, 
-      defaultSets, 
-      defaultReps, 
-      estimatedBurnPerMin 
+    const {
+      name,
+      category,
+      durationMin,
+      targetAreas,
+      videoUrl,
+      defaultSets,
+      defaultReps,
+      estimatedBurnPerMin
     } = req.body;
 
     // Create exercise
@@ -289,13 +294,13 @@ export const createExercise = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      data:{savedExercise},
+      data: { savedExercise },
       message: 'Exercise created successfully',
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to create exercise',
     });
   }
@@ -310,13 +315,13 @@ export const getWorkoutPlan = async (req, res) => {
 
     return res.json({
       success: true,
-      data:{plan} || null,
+      data: { plan } || null,
       message: 'Workout plan fetched successfully',
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to fetch workout plan',
     });
   }
@@ -331,29 +336,29 @@ export const getWorkoutLog = async (req, res) => {
     if (!date) {
       return res.status(400).json({
         success: false,
-         data:{},
+        data: {},
         message: 'Date is required (YYYY-MM-DD)',
       });
     }
 
     const logDate = new Date(date);
-    const log = await WorkoutLog.findOne({ 
-      userId, 
-      loggedAt: { 
-        $gte: logDate, 
-        $lt: new Date(logDate.getTime() + 24 * 60 * 60 * 1000) 
-      } 
+    const log = await WorkoutLog.findOne({
+      userId,
+      loggedAt: {
+        $gte: logDate,
+        $lt: new Date(logDate.getTime() + 24 * 60 * 60 * 1000)
+      }
     });
 
     return res.json({
       success: true,
-       data:{log} || null,
+      data: { log } || null,
       message: 'Workout log fetched successfully',
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to fetch workout log',
     });
   }
@@ -387,7 +392,7 @@ export const getWorkoutLogs = async (req, res) => {
 
     return res.json({
       success: true,
-       data:{
+      data: {
         logs,
         range,
         startDate: start.toISOString().split('T')[0],
@@ -398,7 +403,7 @@ export const getWorkoutLogs = async (req, res) => {
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to fetch workout logs',
     });
   }
@@ -421,7 +426,7 @@ export const getWorkoutStreak = async (req, res) => {
 
     return res.json({
       success: true,
-       data:{
+      data: {
         currentStreak: user.streakDays || 0,
         lastStreakDate: user.lastStreakDate,
       },
@@ -430,7 +435,7 @@ export const getWorkoutStreak = async (req, res) => {
   } catch (err) {
     return res.status(400).json({
       success: false,
-       data:{},
+      data: {},
       message: err.message || 'Failed to fetch workout streak',
     });
   }
@@ -442,9 +447,9 @@ export default {
   createWorkoutPlan,
   logWorkout,
   getWorkoutProgress,
-  createExercise, 
-  getWorkoutPlan, 
-  getWorkoutLog,  
-  getWorkoutLogs, 
+  createExercise,
+  getWorkoutPlan,
+  getWorkoutLog,
+  getWorkoutLogs,
   getWorkoutStreak,
 };
