@@ -77,8 +77,8 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
     autoTrackCategories: [String], // e.g., ['steps', 'nutrition']
-    aiTrainer: {
-      gender: String, // 'male', 'female'
+    aTrainer: {
+      igender: String, // 'male', 'female'
       tonality: String, // 'energetic', 'calm', 'insightful'
     },
     aiNutritionist: {

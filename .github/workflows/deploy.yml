@@ -25,21 +25,19 @@ jobs:
 
   deploy:
 
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: build
 
     steps:
-    - name: Delete Old docker container
-      run: sudo docker rm -f zenova-api || true
-    
-    - name: Delete Old docker Image
-      run:  sudo docker rmi -f moinaknaskar/zenova:latest || true
-
-    - name: Reset docker history
-      run:  sudo docker system prune -f || true
-
-    - name: Pull Docker image
-      run: sudo docker pull moinaknaskar/zenova:latest
-
-    - name: Run Docker Container
-      run: sudo docker run -d -p 8000:8000 --name zenova-api moinaknaskar/zenova
+    - name: Deploy to EC2 via SSH
+      uses: appleboy/ssh-action@v1
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          sudo docker rm -f zenova-api || true
+          sudo docker rmi -f moinaknaskar/zenova:latest || true
+          sudo docker system prune -f || true
+          sudo docker pull moinaknaskar/zenova:latest
+          sudo docker run -d -p 8000:8000 --name zenova-api moinaknaskar/zenova
