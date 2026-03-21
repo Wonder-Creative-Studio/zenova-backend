@@ -29,25 +29,19 @@ jobs:
     needs: build
 
     steps:
-    - name: Debug - Check SSH key loaded
-      run: |
-        echo "Key length: ${#SSH_KEY}"
-        echo "Host: $EC2_HOST"
-        echo "Username: $EC2_USERNAME"
+    - name: Deploy to EC2 via SSH
       env:
-        SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         EC2_HOST: ${{ secrets.EC2_HOST }}
         EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-
-    - name: Deploy to EC2 via SSH
-      uses: appleboy/ssh-action@v1
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USERNAME }}
-        key: ${{ secrets.EC2_SSH_KEY }}
-        script: |
+      run: |
+        echo "$EC2_SSH_KEY" > /tmp/ssh_key.pem
+        chmod 600 /tmp/ssh_key.pem
+        ssh -o StrictHostKeyChecking=no -i /tmp/ssh_key.pem $EC2_USERNAME@$EC2_HOST << 'EOF'
           sudo docker rm -f zenova-api || true
           sudo docker rmi -f moinaknaskar/zenova:latest || true
           sudo docker system prune -f || true
           sudo docker pull moinaknaskar/zenova:latest
           sudo docker run -d -p 8000:8000 --name zenova-api moinaknaskar/zenova
+        EOF
+        rm -f /tmp/ssh_key.pem
