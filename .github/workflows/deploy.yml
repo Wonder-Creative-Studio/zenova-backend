@@ -29,6 +29,16 @@ jobs:
     needs: build
 
     steps:
+    - name: Debug - Check SSH key loaded
+      run: |
+        echo "Key length: ${#SSH_KEY}"
+        echo "Host: $EC2_HOST"
+        echo "Username: $EC2_USERNAME"
+      env:
+        SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+        EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+
     - name: Deploy to EC2 via SSH
       uses: appleboy/ssh-action@v1
       with:
