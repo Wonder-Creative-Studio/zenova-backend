@@ -35,9 +35,9 @@ jobs:
         EC2_HOST: ${{ secrets.EC2_HOST }}
         EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
       run: |
-        echo "$EC2_SSH_KEY" > /tmp/ssh_key.pem
+        printenv EC2_SSH_KEY > /tmp/ssh_key.pem
         chmod 600 /tmp/ssh_key.pem
-        ssh -o StrictHostKeyChecking=no -i /tmp/ssh_key.pem $EC2_USERNAME@$EC2_HOST << 'EOF'
+        ssh -T -o StrictHostKeyChecking=no -i /tmp/ssh_key.pem $EC2_USERNAME@$EC2_HOST << 'EOF'
           sudo docker rm -f zenova-api || true
           sudo docker rmi -f moinaknaskar/zenova:latest || true
           sudo docker system prune -f || true
