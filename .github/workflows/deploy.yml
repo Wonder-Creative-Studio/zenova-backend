@@ -40,6 +40,7 @@ jobs:
           ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
           
           ssh -i ~/.ssh/deploy_key $EC2_USERNAME@$EC2_HOST << 'DEPLOY_SCRIPT'
+            sudo docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
             sudo docker rm -f zenova-api || true
             sudo docker rmi -f moinaknaskar/zenova:latest || true
             sudo docker system prune -f || true
