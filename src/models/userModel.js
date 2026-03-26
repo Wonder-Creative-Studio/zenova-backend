@@ -102,6 +102,14 @@ const userSchema = new mongoose.Schema(
       reminderEnabled: { type: Boolean, default: true },
     },
     // Gamification fields
+    medals: {
+      type: Number,
+      default: 0,
+    },
+    rank: {
+      type: String,
+      default: 'Awakener',
+    },
     novaCoins: {
       type: Number,
       default: 0,

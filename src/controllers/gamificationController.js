@@ -2,6 +2,7 @@
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import gamificationService from '~/services/gamificationService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import novaCoinsService from '~/services/novaCoinsService';
 import badgeService from '~/services/badgeService';
 import questService from '~/services/questService';
@@ -263,6 +264,39 @@ export const getLeaderboard = async (req, res) => {
     }
 };
 
+/**
+ * Test V2 Gamification Logic
+ * POST /api/gamification/test-v2
+ */
+export const testV2GameLogic = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { type } = req.body;
+
+        if (!type) {
+            throw new APIError("Please provide 'type' in body (e.g. 'workout', 'meal')", httpStatus.BAD_REQUEST);
+        }
+
+        const result = await gamificationServiceV2.processActivityV2(userId, {
+            type,
+            logId: 'test_log',
+            logModel: 'test_model'
+        });
+
+        return res.json({
+            success: true,
+            data: result,
+            message: 'V2 Logic executed successfully',
+        });
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            data: {},
+            message: err.message || 'Failed to execute V2 Logic',
+        });
+    }
+};
+
 export default {
     getSummary,
     getCoinsBalance,
@@ -271,5 +305,6 @@ export default {
     getBadges,
     getQuests,
     getStats,
-    getLeaderboard
+    getLeaderboard,
+    testV2GameLogic
 };

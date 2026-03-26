@@ -29,4 +29,7 @@ router.get('/stats', catchAsync(gamificationController.getStats));
 // Leaderboard
 router.get('/leaderboard', catchAsync(gamificationController.getLeaderboard));
 
+// Test V2 endpoint
+router.post('/test-v2', catchAsync(gamificationController.testV2GameLogic));
+
 export default router;
