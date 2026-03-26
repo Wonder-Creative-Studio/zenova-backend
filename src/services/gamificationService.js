@@ -1,7 +1,6 @@
 // src/services/gamificationService.js
 import novaCoinsService from '~/services/novaCoinsService';
 import statsService from '~/services/statsService';
-import badgeService from '~/services/badgeService';
 import questService from '~/services/questService';
 import { COIN_REWARDS, LEVEL_CONFIG, STREAK_CONFIG } from '~/config/gamification';
 import User from '~/models/userModel';
@@ -73,10 +72,7 @@ export const processActivity = async (userId, activity) => {
             streakDays: streakResult.current
         });
 
-        // 8. Check badge unlocks
-        const badgeResult = await badgeService.evaluate(userId, stats);
-
-        // 9. Check streak milestones
+        // 8. Check streak milestones
         let streakBonus = 0;
         const streakMilestone = STREAK_CONFIG.milestones[streakResult.current];
         if (streakResult.isNewStreak && streakMilestone) {
@@ -92,18 +88,17 @@ export const processActivity = async (userId, activity) => {
             }
         }
 
-        // 10. Update level if needed
-        const totalCoins = coinsResult.balance + questResult.bonusCoins + badgeResult.bonusCoins + streakBonus;
+        // 9. Update level if needed
+        const totalCoins = coinsResult.balance + questResult.bonusCoins + streakBonus;
         const levelResult = await updateLevel(userId, totalCoins);
 
         return {
             coinsEarned: finalCoins,
             bonusCoins: {
                 quest: questResult.bonusCoins,
-                badge: badgeResult.bonusCoins,
                 streak: streakBonus
             },
-            totalCoinsEarned: finalCoins + questResult.bonusCoins + badgeResult.bonusCoins + streakBonus,
+            totalCoinsEarned: finalCoins + questResult.bonusCoins + streakBonus,
             totalCoins: totalCoins,
             streak: {
                 current: streakResult.current,
@@ -111,8 +106,7 @@ export const processActivity = async (userId, activity) => {
                 milestone: streakMilestone ? streakResult.current : null
             },
             level: levelResult,
-            questsCompleted: questResult.completed,
-            badgesUnlocked: badgeResult.unlocked
+            questsCompleted: questResult.completed
         };
 
     } catch (err) {
@@ -120,13 +114,12 @@ export const processActivity = async (userId, activity) => {
         // Return safe defaults instead of throwing
         return {
             coinsEarned: 0,
-            bonusCoins: { quest: 0, badge: 0, streak: 0 },
+            bonusCoins: { quest: 0, streak: 0 },
             totalCoinsEarned: 0,
             totalCoins: 0,
             streak: { current: 0, isNew: false, milestone: null },
             level: { current: 1, previous: 1, isLevelUp: false, milestone: null },
-            questsCompleted: [],
-            badgesUnlocked: []
+            questsCompleted: []
         };
     }
 };
@@ -202,10 +195,9 @@ async function updateLevel(userId, totalCoins) {
  * Get user's gamification summary
  */
 export const getSummary = async (userId) => {
-    const [user, stats, badges] = await Promise.all([
-        User.findById(userId).select('novaCoins level badges questsCompleted'),
-        statsService.getStats(userId),
-        badgeService.getUserBadges(userId)
+    const [user, stats] = await Promise.all([
+        User.findById(userId).select('novaCoins level questsCompleted'),
+        statsService.getStats(userId)
     ]);
 
     const currentLevel = user?.level || 1;
@@ -222,10 +214,6 @@ export const getSummary = async (userId) => {
             longest: stats?.streaks?.longest || 0
         },
         stats: stats?.totals || {},
-        badgesCount: {
-            unlocked: (user?.badges || []).length,
-            total: badges.length
-        },
         questsCompleted: (user?.questsCompleted || []).length
     };
 };

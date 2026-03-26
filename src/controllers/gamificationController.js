@@ -4,10 +4,10 @@ import APIError from '~/utils/apiError';
 import gamificationService from '~/services/gamificationService';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import novaCoinsService from '~/services/novaCoinsService';
-import badgeService from '~/services/badgeService';
 import questService from '~/services/questService';
 import statsService from '~/services/statsService';
 import NovaTransaction from '~/models/novaTransactionModel';
+import LevelReward from '~/models/levelRewardModel';
 
 /**
  * Get complete gamification summary
@@ -114,37 +114,6 @@ export const getEarningsBreakdown = async (req, res) => {
             success: false,
             data: {},
             message: err.message || 'Failed to fetch earnings breakdown',
-        });
-    }
-};
-
-/**
- * Get user badges with progress
- * GET /api/gamification/badges
- */
-export const getBadges = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const badges = await badgeService.getUserBadges(userId);
-
-        const unlocked = badges.filter(b => b.isUnlocked);
-        const locked = badges.filter(b => !b.isUnlocked);
-
-        return res.json({
-            success: true,
-            data: {
-                unlocked,
-                locked,
-                total: badges.length,
-                unlockedCount: unlocked.length
-            },
-            message: 'Badges fetched successfully',
-        });
-    } catch (err) {
-        return res.status(400).json({
-            success: false,
-            data: {},
-            message: err.message || 'Failed to fetch badges',
         });
     }
 };
@@ -265,6 +234,29 @@ export const getLeaderboard = async (req, res) => {
 };
 
 /**
+ * Get user's level-up reward history
+ * GET /api/gamification/level-rewards
+ */
+export const getLevelRewards = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const rewards = await LevelReward.find({ userId }).sort({ level: 1 });
+
+        return res.json({
+            success: true,
+            data: { rewards, total: rewards.length },
+            message: 'Level rewards fetched successfully',
+        });
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            data: {},
+            message: err.message || 'Failed to fetch level rewards',
+        });
+    }
+};
+
+/**
  * Test V2 Gamification Logic
  * POST /api/gamification/test-v2
  */
@@ -302,9 +294,9 @@ export default {
     getCoinsBalance,
     getCoinsHistory,
     getEarningsBreakdown,
-    getBadges,
     getQuests,
     getStats,
+    getLevelRewards,
     getLeaderboard,
     testV2GameLogic
 };

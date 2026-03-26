@@ -42,7 +42,7 @@ const userStatsSchema = new mongoose.Schema({
     streaks: {
         current: { type: Number, default: 0 },
         longest: { type: Number, default: 0 },
-        lastActiveDate: { type: Date },
+        lastActiveDate: { type: Date },   // last day the user tracked ANY item
         novaCurrent: { type: Number, default: 0 },
         novaLongest: { type: Number, default: 0 },
         lastNovaLogDate: { type: Date }

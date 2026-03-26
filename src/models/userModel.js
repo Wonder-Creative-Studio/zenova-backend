@@ -122,11 +122,6 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
-    badges: [{
-      name: String,        // "Streak Master"
-      icon: String,        // "streak_1"
-      unlockedAt: Date,
-    }],
     questsCompleted: [{
       questId: {
         type: mongoose.Schema.Types.ObjectId,

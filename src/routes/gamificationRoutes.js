@@ -17,14 +17,14 @@ router.get('/coins/balance', catchAsync(gamificationController.getCoinsBalance))
 router.get('/coins/history', catchAsync(gamificationController.getCoinsHistory));
 router.get('/coins/earnings', catchAsync(gamificationController.getEarningsBreakdown));
 
-// Badges
-router.get('/badges', catchAsync(gamificationController.getBadges));
-
 // Quests
 router.get('/quests', catchAsync(gamificationController.getQuests));
 
 // Stats
 router.get('/stats', catchAsync(gamificationController.getStats));
+
+// Level rewards history
+router.get('/level-rewards', catchAsync(gamificationController.getLevelRewards));
 
 // Leaderboard
 router.get('/leaderboard', catchAsync(gamificationController.getLeaderboard));
