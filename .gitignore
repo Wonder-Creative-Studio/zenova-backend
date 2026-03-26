@@ -3,6 +3,7 @@
 
 # misc
 .env
+.env.secrets
 
 # build
 /dist
