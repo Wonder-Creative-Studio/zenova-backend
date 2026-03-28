@@ -42,7 +42,10 @@ const userStatsSchema = new mongoose.Schema({
     streaks: {
         current: { type: Number, default: 0 },
         longest: { type: Number, default: 0 },
-        lastActiveDate: { type: Date }
+        lastActiveDate: { type: Date },   // last day the user tracked ANY item
+        novaCurrent: { type: Number, default: 0 },
+        novaLongest: { type: Number, default: 0 },
+        lastNovaLogDate: { type: Date }
     },
 
     // Activity tracking for weekly quests
@@ -61,6 +64,8 @@ const userStatsSchema = new mongoose.Schema({
     today: {
         date: { type: Date },
         coinsEarned: { type: Number, default: 0 },
+        medalsEarnedStandard: { type: Number, default: 0 },
+        categoriesTracked: [{ type: String }],
         moodCoins: { type: Number, default: 0 },
         workoutCoins: { type: Number, default: 0 },
         mealCoins: { type: Number, default: 0 },
@@ -118,6 +123,8 @@ userStatsSchema.statics.resetDailyStats = async function () {
             $set: {
                 'today.date': now,
                 'today.coinsEarned': 0,
+                'today.medalsEarnedStandard': 0,
+                'today.categoriesTracked': [],
                 'today.moodCoins': 0,
                 'today.workoutCoins': 0,
                 'today.mealCoins': 0,
