@@ -20,6 +20,7 @@ export const verifyOtp = {
     phone: Joi.string().pattern(/^[0-9]{10,15}$/).optional(),
     otp: Joi.string().length(6).required(),
     type: Joi.string().valid('LOGIN', 'RESET_PASSWORD', 'EMAIL_VERIFICATION').required(),
+    fcmTokens: Joi.any().optional(),
   })
     .custom((value, helpers) => {
       if (!value.email && !value.phone) {

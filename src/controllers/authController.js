@@ -90,7 +90,7 @@ export const signup = async (req, res) => {
 
 export const signin = async (req, res) => {
   try {
-    const { email, phone, password } = req.body;
+    const { email, phone, password, fcmTokens } = req.body;
 
     if ((!email && !phone) || !password) {
       return res.status(400).json({
@@ -107,7 +107,6 @@ export const signin = async (req, res) => {
     } else if (phone) {
       user = await User.findOne({ phone }).populate('roles', 'name');
     }
-
 
     if (!user) {
       return res.status(400).json({
@@ -126,6 +125,19 @@ export const signin = async (req, res) => {
         message: 'Incorrect email/phone or password',
       });
     }
+
+    // normalize: accept string or array, merge with existing tokens (deduplicated)
+    const incoming = fcmTokens
+      ? (Array.isArray(fcmTokens) ? fcmTokens : [fcmTokens])
+      : [];
+    const existing = user.fcmTokens || [];
+    const mergedTokens = [...new Set([...existing, ...incoming])];
+
+    user = await User.findByIdAndUpdate(
+      user._id,
+      { $set: { fcmTokens: mergedTokens } },
+      { new: true }
+    ).populate('roles', 'name');
 
     // generate tokens
     const tokens = await tokenService.generateAuthTokens(user);
@@ -176,7 +188,21 @@ export const current = async (req, res) => {
 };
 
 export const getMe = async (req, res) => {
-  const user = await User.getUserByIdWithRoles(req.user.id);
+  const { fcmToken } = req.query;
+
+  // fetch first to get existing tokens, then merge and save
+  const existing = await User.findById(req.user.id).select('fcmTokens');
+  const existingTokens = existing?.fcmTokens || [];
+  const mergedTokens = fcmToken
+    ? [...new Set([...existingTokens, fcmToken])]
+    : existingTokens;
+
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    { $set: { fcmTokens: mergedTokens } },
+    { new: true }
+  ).populate('roles', 'name description');
+
   if (!user) {
     return res.status(404).json({
       success: false,
@@ -205,6 +231,7 @@ export const signout = async (req, res) => {
     const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
     console.log(refreshToken);
     await Token.revokeToken(refreshToken, config.TOKEN_TYPES.REFRESH);
+
     return res.
       clearCookie("accessToken")
       .clearCookie("refreshToken")
@@ -364,7 +391,7 @@ export const resetPassword = async (req, res) => {
 
 export const googleSignIn = async (req, res) => {
   try {
-    const { idToken } = req.body;
+    const { idToken, fcmTokens } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
@@ -374,7 +401,19 @@ export const googleSignIn = async (req, res) => {
       });
     }
 
-    const { user, tokens } = await googleService.googleSignIn(idToken);
+    let { user, tokens } = await googleService.googleSignIn(idToken);
+
+    const incoming = fcmTokens
+      ? (Array.isArray(fcmTokens) ? fcmTokens : [fcmTokens])
+      : [];
+    const existing = user.fcmTokens || [];
+    const mergedTokens = [...new Set([...existing, ...incoming])];
+
+    user = await User.findByIdAndUpdate(
+      user._id,
+      { $set: { fcmTokens: mergedTokens } },
+      { new: true }
+    );
 
     return res.json({
       success: true,
@@ -393,7 +432,7 @@ export const googleSignIn = async (req, res) => {
 
 export const appleSignIn = async (req, res) => {
   try {
-    const { identityToken } = req.body;
+    const { identityToken, fcmTokens } = req.body;
 
     if (!identityToken) {
       return res.status(400).json({
@@ -403,7 +442,19 @@ export const appleSignIn = async (req, res) => {
       });
     }
 
-    const { user, tokens } = await appleService.appleSignIn(identityToken);
+    let { user, tokens } = await appleService.appleSignIn(identityToken);
+
+    const incoming = fcmTokens
+      ? (Array.isArray(fcmTokens) ? fcmTokens : [fcmTokens])
+      : [];
+    const existing = user.fcmTokens || [];
+    const mergedTokens = [...new Set([...existing, ...incoming])];
+
+    user = await User.findByIdAndUpdate(
+      user._id,
+      { $set: { fcmTokens: mergedTokens } },
+      { new: true }
+    );
 
     return res.json({
       success: true,

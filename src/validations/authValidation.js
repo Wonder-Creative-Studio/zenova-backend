@@ -31,7 +31,8 @@ export const signin = {
     userName: Joi.string().optional(),
     email: Joi.string().email().optional(),
     phone: Joi.string().optional(),
-    password: Joi.string().required()
+    password: Joi.string().required(),
+    fcmTokens: Joi.any().optional()
   })
     .custom((value, helpers) => {
       if (!value.userName && !value.email && !value.phone) {
@@ -88,13 +89,21 @@ export const updateMe = {
 export const googleSignIn = {
   body: Joi.object().keys({
     idToken: Joi.string().required(),
+    fcmTokens: Joi.any().optional()
   }),
 };
 
 export const appleSignIn = {
   body: Joi.object().keys({
     identityToken: Joi.string().required(),
+    fcmTokens: Joi.any().optional()
   }),
+};
+
+export const getMe = {
+  query: Joi.object().keys({
+    fcmToken: Joi.string().optional()
+  })
 };
 
 export default {
@@ -107,5 +116,6 @@ export default {
   forgotPassword,
   resetPassword,
   googleSignIn,
-  appleSignIn
+  appleSignIn,
+  getMe
 };

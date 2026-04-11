@@ -13,7 +13,7 @@ router.post('/google', validate(authValidation.googleSignIn), catchAsync(authCon
 router.post('/apple', validate(authValidation.appleSignIn), catchAsync(authController.appleSignIn));
 
 router.get('/current', authenticate(), catchAsync(authController.current));
-router.get('/me', authenticate(), catchAsync(authController.getMe));
+router.get('/me', authenticate(), validate(authValidation.getMe), catchAsync(authController.getMe));
 router.put('/me', authenticate(), validate(authValidation.updateMe), catchAsync(authController.updateMe));
 router.post('/signout', validate(authValidation.signout), catchAsync(authController.signout));
 router.post('/refresh-tokens', validate(authValidation.refreshTokens), catchAsync(authController.refreshTokens));

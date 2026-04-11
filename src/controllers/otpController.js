@@ -115,7 +115,7 @@ export const sendOtp = async (req, res, next) => {
 
 export const verifyOtp = async (req, res, next) => {
   try {
-    let { email, phone, otp, type } = req.body;
+    let { email, phone, otp, type, fcmTokens } = req.body;
 
     // Default OTP type (same as sendOtp)
     type = type || 'LOGIN';
@@ -154,29 +154,38 @@ export const verifyOtp = async (req, res, next) => {
     // Delete OTP after successful use
     await Otp.deleteOne({ _id: otpDoc._id });
 
-    // Mark user verified (optional)
-    if (!user.isVerified) {
-      user.isVerified = true;
-      await user.save();
-    }
+    // Mark user verified and save FCM tokens
+    const incoming = fcmTokens
+      ? (Array.isArray(fcmTokens) ? fcmTokens : [fcmTokens])
+      : [];
+    const existing = user.fcmTokens || [];
+    const mergedTokens = [...new Set([...existing, ...incoming])];
+
+    user = await User.findByIdAndUpdate(
+      user._id,
+      {
+        $set: {
+          fcmTokens: mergedTokens,
+          isVerified: true,
+        },
+      },
+      { new: true }
+    );
 
     // Generate JWT tokens
     const tokens = await tokenService.generateAuthTokens(user);
 
-    // FIX: Determine onboarding status using new flag
     const isNewUser = !user.isOnboarded;
     const options = {
       httpOnly: false,
       secure: false,
-      maxAge: 24 * 60 * 60 * 1000
+      maxAge: 24 * 60 * 60 * 1000,
+    };
 
-
-    }
-
-    return res.
-      cookie('refreshToken', tokens.refreshToken.token, options).
-      cookie('accessToken', tokens.accessToken.token, options).
-      json({
+    return res
+      .cookie('refreshToken', tokens.refreshToken.token, options)
+      .cookie('accessToken', tokens.accessToken.token, options)
+      .json({
         success: true,
         data: {
           userId: user._id,
@@ -188,6 +197,7 @@ export const verifyOtp = async (req, res, next) => {
             email: user.email,
             phone: user.phone,
             avatarUrl: user.avatarUrl,
+            fcmTokens: user.fcmTokens,
           },
           tokens,
         },
