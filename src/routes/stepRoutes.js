@@ -8,6 +8,7 @@ import stepController from '~/controllers/stepController';
 
 const router = Router();
 
+
 router.post('/goal', authenticate(), validate(stepValidation.setStepGoal), catchAsync(stepController.setStepGoal));
 router.post('/log', authenticate(), validate(stepValidation.logSteps), catchAsync(stepController.logSteps));
 router.get('/progress', authenticate(), validate(stepValidation.getStepProgress), catchAsync(stepController.getStepProgress));
