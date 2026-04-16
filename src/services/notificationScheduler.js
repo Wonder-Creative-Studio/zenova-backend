@@ -16,7 +16,7 @@ const sendScheduledNotifications = async () => {
     const notifications = await Notification.find({
       scheduledAt: { $gte: fiveMinutesAgo, $lte: now },
       status: 'scheduled',
-    }).populate('userId', 'deviceToken');
+    }).populate('userId', 'fcmTokens');
 
     if (notifications.length === 0) return;
 
@@ -24,26 +24,26 @@ const sendScheduledNotifications = async () => {
 
     for (const notif of notifications) {
       try {
-        // Send FCM push
-        if (notif.userId?.deviceToken) {
-          const sent = await fcmService.sendPushNotification(
-            notif.userId.deviceToken,
-            notif.title,
-            notif.body,
-            { notificationId: notif._id.toString() }
+        const tokens = notif.userId?.fcmTokens || [];
+
+        if (tokens.length > 0) {
+          const results = await Promise.all(
+            tokens.map(token =>
+              fcmService.sendPushNotification(token, notif.title, notif.body, {
+                notificationId: notif._id.toString(),
+                category: notif.category,
+              })
+            )
           );
-          if (sent) {
-            notif.status = 'sent';
-            await notif.save();
-            console.log(`✅ Sent notification: ${notif._id}`);
-          } else {
-            console.warn(`⚠️ FCM failed for: ${notif._id}`);
-          }
+          const sent = results.filter(Boolean).length;
+          console.log(`✅ Notification ${notif._id} — ${sent}/${tokens.length} device(s) reached`);
         } else {
-          // Mark as sent (no device token)
-          notif.status = 'sent';
-          await notif.save();
+          console.warn(`⚠️ No FCM tokens for notification: ${notif._id}`);
         }
+
+        notif.status = 'sent';
+        notif.sentAt = new Date();
+        await notif.save();
       } catch (err) {
         console.error(`❌ Failed to send notification ${notif._id}:`, err.message);
       }

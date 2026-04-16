@@ -65,18 +65,34 @@ export const sendPushNotification = async (req, res) => {
       });
     }
 
-    // ✅ SIMULATE SUCCESS (no FCM)
+    const user = await User.findById(notification.userId).select('fcmTokens').lean();
+    const tokens = user?.fcmTokens || [];
+
+    let fcmSent = 0;
+    if (tokens.length > 0) {
+      const results = await Promise.all(
+        tokens.map(token =>
+          fcmService.sendPushNotification(token, notification.title, notification.body, {
+            notificationId: notification._id.toString(),
+            category: notification.category,
+          })
+        )
+      );
+      fcmSent = results.filter(Boolean).length;
+    }
+
     notification.sentAt = new Date();
     notification.status = 'sent';
     await notification.save();
 
     return res.json({
       success: true,
-       data:{
+      data: {
         ...notification.toObject(),
-        fcmSent: false, // ← Clearly mark as simulated
+        fcmSent,
+        tokensTargeted: tokens.length,
       },
-      message: 'Notification marked as sent (FCM disabled)',
+      message: `Notification sent — ${fcmSent} device(s) reached`,
     });
   } catch (err) {
     return res.status(400).json({
@@ -141,34 +157,29 @@ export const getNotificationHistory = async (req, res) => {
     const userId = req.user.id;
     const { period } = req.query; // 'today', 'yesterday', 'all'
 
-    let start, end;
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+
+    let filter = { userId };
 
     if (period === 'today') {
-      start = today;
-      end = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+      filter.scheduledAt = { $gte: today, $lt: tomorrow };
     } else if (period === 'yesterday') {
-      start = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-      end = today;
-    } else {
-      // Default to last 7 days
-      start = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      end = today;
+      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+      filter.scheduledAt = { $gte: yesterday, $lt: today };
+    } else if (period === 'all' || !period) {
+      // no date filter — return everything
     }
 
-    const notifications = await Notification.find({
-      userId,
-      scheduledAt: { $gte: start, $lte: end },
-    }).sort({ scheduledAt: -1 });
+    const notifications = await Notification.find(filter).sort({ scheduledAt: -1 });
 
     return res.json({
       success: true,
-      data:{
+      data: {
         notifications,
-        period: period || 'last 7 days',
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0],
+        period: period || 'all',
+        total: notifications.length,
       },
       message: 'Notification history fetched successfully',
     });
@@ -248,10 +259,207 @@ export const getScheduledNotifications = async (req, res) => {
   }
 };
 
+export const sendInstantNotification = async (req, res) => {
+  try {
+    const { title, body, category, data = {}, targetUserId, targetAll = false } = req.body;
+
+    if (!title || !body || !category) {
+      return res.status(400).json({
+        success: false,
+        data: {},
+        message: 'title, body, and category are required',
+      });
+    }
+
+    if (!targetAll && !targetUserId) {
+      return res.status(400).json({
+        success: false,
+        data: {},
+        message: 'Provide either targetUserId or set targetAll: true',
+      });
+    }
+
+    // Resolve target users
+    let targetUsers = [];
+    if (targetAll) {
+      targetUsers = await User.find({ fcmTokens: { $exists: true, $ne: [] } })
+        .select('_id fcmTokens')
+        .lean();
+    } else {
+      const user = await User.findById(targetUserId).select('_id fcmTokens').lean();
+      if (!user) {
+        return res.status(404).json({ success: false, data: {}, message: 'Target user not found' });
+      }
+      targetUsers = [user];
+    }
+
+    const now = new Date();
+    let totalSent = 0;
+    let totalFailed = 0;
+    const notifications = [];
+
+    // Send to each user's FCM tokens and save a notification record
+    await Promise.all(
+      targetUsers.map(async (user) => {
+        const tokens = user.fcmTokens || [];
+
+        const notification = await Notification.create({
+          userId: user._id,
+          title,
+          body,
+          category,
+          scheduledAt: now,
+          sentAt: now,
+          status: tokens.length > 0 ? 'sent' : 'scheduled',
+        });
+
+        notifications.push(notification._id);
+
+        if (tokens.length > 0) {
+          const results = await Promise.all(
+            tokens.map(token =>
+              fcmService.sendPushNotification(token, title, body, {
+                notificationId: notification._id.toString(),
+                category,
+                ...data,
+              })
+            )
+          );
+          totalSent += results.filter(Boolean).length;
+          totalFailed += results.filter(r => !r).length;
+        }
+      })
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        usersTargeted: targetUsers.length,
+        notificationsCreated: notifications.length,
+        fcmSent: totalSent,
+        fcmFailed: totalFailed,
+      },
+      message: targetAll
+        ? `Broadcast sent to ${targetUsers.length} user(s) — ${totalSent} device(s) reached`
+        : `Notification sent to user — ${totalSent} device(s) reached`,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to send instant notification',
+    });
+  }
+};
+
+export const getNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { status, page = 1, limit = 20 } = req.query;
+
+    const filter = { userId };
+    if (status) filter.status = status;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [notifications, total] = await Promise.all([
+      Notification.find(filter)
+        .sort({ scheduledAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Notification.countDocuments(filter),
+    ]);
+
+    const unreadCount = await Notification.countDocuments({ userId, status: { $nin: ['read', 'dismissed'] } });
+
+    return res.json({
+      success: true,
+      data: {
+        notifications,
+        unreadCount,
+        pagination: {
+          total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(total / parseInt(limit)),
+        },
+      },
+      message: 'Notifications fetched successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to fetch notifications',
+    });
+  }
+};
+
+export const markAsRead = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const notification = await Notification.findOneAndUpdate(
+      { _id: id, userId },
+      { status: 'read' },
+      { new: true }
+    );
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Notification not found',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: notification,
+      message: 'Notification marked as read',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to mark notification as read',
+    });
+  }
+};
+
+export const markAllAsRead = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await Notification.updateMany(
+      { userId, status: { $nin: ['read', 'dismissed'] } },
+      { status: 'read' }
+    );
+
+    return res.json({
+      success: true,
+      data: { updatedCount: result.modifiedCount },
+      message: 'All notifications marked as read',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to mark all notifications as read',
+    });
+  }
+};
+
 export default {
   scheduleNotification,
   sendPushNotification,
+  sendInstantNotification,
   getNotificationHistory,
   updateNotificationAction,
   getScheduledNotifications,
+  getNotifications,
+  markAsRead,
+  markAllAsRead,
 };

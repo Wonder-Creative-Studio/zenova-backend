@@ -4,13 +4,71 @@ import APIError from '~/utils/apiError';
 import gamificationService from '~/services/gamificationService';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import novaCoinsService from '~/services/novaCoinsService';
-import questService from '~/services/questService';
 import statsService from '~/services/statsService';
 import NovaTransaction from '~/models/novaTransactionModel';
 import LevelReward from '~/models/levelRewardModel';
 import UserStats from '~/models/userStatsModel';
 import User from '~/models/userModel';
+import Quest from '~/models/questModel';
 import configV2 from '~/config/gamificationV2';
+
+// Pure helper — builds period-aware quest response from already-fetched arrays (no DB calls)
+const buildQuestResponse = (questsCompleted, allQuests, period) => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek  = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay()); // roll back to Sunday
+
+    // Latest completedAt per questId (daily/weekly quests accumulate entries across resets)
+    const completionMap = new Map();
+    for (const entry of (questsCompleted || [])) {
+        const key = entry.questId?.toString();
+        if (!key) continue;
+        const existing = completionMap.get(key);
+        if (!existing || entry.completedAt > existing) completionMap.set(key, entry.completedAt);
+    }
+
+    const enriched = allQuests.map(quest => {
+        const completedAt = completionMap.get(quest._id.toString());
+        let isCompleted = false;
+        if (completedAt) {
+            if (quest.category === 'daily')       isCompleted = completedAt >= startOfToday;
+            else if (quest.category === 'weekly') isCompleted = completedAt >= startOfWeek;
+            else                                  isCompleted = true; // milestone, special: one-shot
+        }
+        return {
+            id: quest._id,
+            title: quest.title,
+            description: quest.description,
+            category: quest.category,
+            rewardCoins: quest.rewardCoins,
+            badge: quest.badge || null,
+            isCompleted,
+            completedAt: isCompleted ? completedAt : null,
+            // coinsAwarded sourced from quest def — userModel schema drops the pushed field (strict mode)
+            coinsAwarded: isCompleted ? (quest.rewardCoins || 0) : 0
+        };
+    });
+
+    const completedQuests = enriched.filter(q => q.isCompleted);
+    const total           = enriched.length;
+    const completedCount  = completedQuests.length;
+
+    return {
+        period: period || 'all',
+        summary: {
+            total,
+            completed: completedCount,
+            completionRate: total > 0 ? Math.round((completedCount / total) * 100) : 0,
+            coinsEarned: completedQuests.reduce((sum, q) => sum + q.coinsAwarded, 0)
+        },
+        quests: enriched,
+        active: enriched.filter(q => !q.isCompleted),  // legacy compat
+        completed: completedQuests,                     // legacy compat
+        total,                                          // legacy compat
+        completedCount                                  // legacy compat
+    };
+};
 
 /**
  * Get complete gamification summary
@@ -127,21 +185,25 @@ export const getEarningsBreakdown = async (req, res) => {
  */
 export const getQuests = async (req, res) => {
     try {
-        const userId = req.user.id;
-        const quests = await questService.getUserQuests(userId);
+        const VALID_PERIODS = ['daily', 'weekly', 'milestone', 'special'];
+        const period = req.query.period?.toLowerCase();
+        if (period && !VALID_PERIODS.includes(period)) {
+            return res.status(400).json({
+                success: false, data: {},
+                message: 'Invalid period. Must be one of: daily, weekly, milestone, special'
+            });
+        }
 
-        const completed = quests.filter(q => q.isCompleted);
-        const active = quests.filter(q => !q.isCompleted);
+        const questFilter = period ? { isActive: true, category: period } : { isActive: true };
+        const [user, allQuests] = await Promise.all([
+            User.findById(req.user.id).select('questsCompleted').lean(),
+            Quest.find(questFilter).lean()
+        ]);
 
         return res.json({
             success: true,
-            data: {
-                active,
-                completed,
-                total: quests.length,
-                completedCount: completed.length
-            },
-            message: 'Quests fetched successfully',
+            data: buildQuestResponse(user?.questsCompleted, allQuests, period),
+            message: 'Quests fetched successfully'
         });
     } catch (err) {
         return res.status(400).json({
@@ -298,15 +360,16 @@ export const testV2GameLogic = async (req, res) => {
  *
  * Query params:
  *   include  - comma-separated list of sections to include.
- *              Available: profile, medals, streaks, today, rank, levelMap, rewards
+ *              Available: profile, medals, streaks, today, rank, levelMap, rewards, quests
  *              Omit to receive ALL sections.
+ *   questPeriod - optional: daily, weekly, milestone, special (used only when quests section is included)
  */
 export const getV2State = async (req, res) => {
     try {
         const userId = req.user.id;
 
         // Determine which sections to include (default = all)
-        const ALL_SECTIONS = ['profile', 'medals', 'streaks', 'today', 'rank', 'levelMap', 'rewards'];
+        const ALL_SECTIONS = ['profile', 'medals', 'streaks', 'today', 'rank', 'levelMap', 'rewards', 'quests'];
         const includeParam = req.query.include;
         const sections = includeParam
             ? includeParam.split(',').map(s => s.trim().toLowerCase()).filter(s => ALL_SECTIONS.includes(s))
@@ -315,19 +378,27 @@ export const getV2State = async (req, res) => {
         const wantAll = (s) => sections.includes(s);
 
         // ── Parallel DB fetches ───────────────────────────────────────────────
-        const [user, stats, rewards] = await Promise.all([
-            (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap'))
-                ? User.findById(userId).select('name email profilePicture novaCoins medals level rank')
+        const questPeriod = wantAll('quests') ? (req.query.questPeriod?.toLowerCase() || undefined) : undefined;
+        const questFilter = wantAll('quests')
+            ? (questPeriod ? { isActive: true, category: questPeriod } : { isActive: true })
+            : null;
+
+        const [user, stats, rewards, allQuests] = await Promise.all([
+            (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap') || wantAll('quests'))
+                ? User.findById(userId).select('name email profilePicture novaCoins medals level rank questsCompleted').lean()
                 : Promise.resolve(null),
             (wantAll('streaks') || wantAll('today') || wantAll('medals'))
-                ? UserStats.findOne({ userId })
+                ? UserStats.findOne({ userId }).lean()
                 : Promise.resolve(null),
             wantAll('rewards')
                 ? LevelReward.find({ userId }).sort({ level: 1 }).lean()
                 : Promise.resolve([]),
+            questFilter
+                ? Quest.find(questFilter).lean()
+                : Promise.resolve([]),
         ]);
 
-        if (!user && (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap'))) {
+        if (!user && (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap') || wantAll('quests'))) {
             throw new APIError('User not found', httpStatus.NOT_FOUND);
         }
 
@@ -451,6 +522,10 @@ export const getV2State = async (req, res) => {
             };
         }
 
+        if (wantAll('quests')) {
+            data.quests = buildQuestResponse(user?.questsCompleted, allQuests, questPeriod);
+        }
+
         return res.json({
             success: true,
             data,
@@ -469,6 +544,46 @@ export const getV2State = async (req, res) => {
     }
 };
 
+export const getStreaks = async (req, res) => {
+    try {
+        const stats = await UserStats.findOne({ userId: req.user.id }).lean();
+
+        const regCurrent  = stats?.streaks?.current || 0;
+        const novaCurrent = stats?.streaks?.novaCurrent || 0;
+
+        // V2 boost formula (same as getV2State)
+        const regBoost  = Math.min(1.5, 1.0 + Math.floor(regCurrent / 7) * 0.10);
+        const novaBoost = Math.min(2.0, 1.0 + Math.floor(novaCurrent / 7) * 0.20);
+        const effectiveBoost = novaCurrent > 0 ? novaBoost : regBoost;
+
+        return res.json({
+            success: true,
+            data: {
+                regular: {
+                    current: regCurrent,
+                    longest: stats?.streaks?.longest || 0,
+                    lastActiveDate: stats?.streaks?.lastActiveDate || null,
+                    boostMultiplier: regBoost
+                },
+                nova: {
+                    current: novaCurrent,
+                    longest: stats?.streaks?.novaLongest || 0,
+                    lastNovaLogDate: stats?.streaks?.lastNovaLogDate || null,
+                    boostMultiplier: novaBoost
+                },
+                effectiveBoost
+            },
+            message: 'Streaks fetched successfully'
+        });
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            data: {},
+            message: err.message || 'Failed to fetch streaks'
+        });
+    }
+};
+
 export default {
     getSummary,
     getCoinsBalance,
@@ -479,5 +594,6 @@ export default {
     getLevelRewards,
     getLeaderboard,
     testV2GameLogic,
-    getV2State
+    getV2State,
+    getStreaks
 };

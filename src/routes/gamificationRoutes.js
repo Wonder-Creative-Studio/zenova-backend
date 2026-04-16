@@ -32,8 +32,12 @@ router.get('/leaderboard', catchAsync(gamificationController.getLeaderboard));
 // Test V2 endpoint
 router.post('/test-v2', catchAsync(gamificationController.testV2GameLogic));
 
+// Streaks (regular + nova) with V2 boost multipliers
+router.get('/streaks', catchAsync(gamificationController.getStreaks));
+
 // Get full V2 gamification state
-// GET /api/gamification/get-v2?include=profile,medals,streaks,today,rank,levelMap,rewards
+// GET /api/gamification/get-v2?include=profile,medals,streaks,today,rank,levelMap,rewards,quests
+// Optional: &questPeriod=daily|weekly|milestone|special
 router.get('/get-v2', catchAsync(gamificationController.getV2State));
 
 export default router;
