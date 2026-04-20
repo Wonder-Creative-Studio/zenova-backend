@@ -21,6 +21,7 @@ import habitRoutes from './habitRoutes'
 import readingRoutes from './readingRoutes';
 import measurementRoutes from './measurementRoutes';
 import gamificationRoutes from './gamificationRoutes';
+import v1Routes from './v1';
 
 const router = Router();
 
@@ -46,6 +47,7 @@ router.use('/habit', habitRoutes);
 router.use('/reading', readingRoutes);
 router.use('/measurement', measurementRoutes);
 router.use('/gamification', gamificationRoutes);
+router.use('/v1', v1Routes);
 
 export default router;
 

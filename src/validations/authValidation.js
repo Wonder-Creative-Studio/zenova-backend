@@ -82,7 +82,16 @@ export const updateMe = {
     email: Joi.string().email(),
     phone: Joi.string().pattern(/^[0-9]{10,15}$/),
     password: Joi.string().trim().min(6).max(100),
-    avatar: Joi.string().max(666)
+    avatar: Joi.string().max(666),
+    dob: Joi.date().iso().max('now').optional(),
+    height: Joi.number().min(50).max(300).optional(),       // cm
+    weight: Joi.number().min(10).max(500).optional(),       // kg
+    gender: Joi.string().valid('male', 'female', 'other').optional(),
+    lifestyle: Joi.string()
+      .valid('sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active')
+      .optional(),
+    medicalCondition: Joi.string().max(200).allow('').optional(),
+    locationName: Joi.string().max(200).allow('').optional(),
   })
 };
 

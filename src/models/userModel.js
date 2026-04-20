@@ -71,6 +71,7 @@ const userSchema = new mongoose.Schema(
     dob: {
       type: Date, // date of birth
     },
+    locationName: { type: String, default: '' },
     languages: [String], // e.g., ['Bengali', 'English']
     syncAppleHealth: {
       type: Boolean,
