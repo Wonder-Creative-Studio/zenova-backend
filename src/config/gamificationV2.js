@@ -209,12 +209,21 @@ export const ACTIONS_CONFIG = {
     }
 };
 
+export const QUEST_CONFIG = {
+    startCost: 50,    // Nova Coins deducted when user starts today's quests
+    skipPenalty: 200, // Nova Coins deducted when user skips today's quests
+};
+
+export const STREAK_PAUSE_COST = 200; // Nova Coins to pause a streak for 1 day
+
 export default {
     RANKS_CONFIG,
     LEVEL_MAP,
     LEVEL_GIFTS,
     DAILY_MEDAL_LIMIT,
     ACTIONS_CONFIG,
+    QUEST_CONFIG,
+    STREAK_PAUSE_COST,
     getLevelFromMedals,
     getLevelGift
 };

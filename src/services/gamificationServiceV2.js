@@ -120,9 +120,25 @@ export const processActivityV2 = async (userId, activity) => {
                 stats.streaks.current = (stats.streaks.current || 0) + 1;
                 isNewRegularStreak = true;
             } else {
-                // Streak broken — restart
-                stats.streaks.current = 1;
-                isNewRegularStreak = true;
+                // Streak broken — check if pause is active (covers the missed day)
+                const pausedUntil = stats.streaks.regularPausedUntil
+                    ? new Date(stats.streaks.regularPausedUntil)
+                    : null;
+                const dayBeforeNow = new Date(now);
+                dayBeforeNow.setDate(dayBeforeNow.getDate() - 1);
+                dayBeforeNow.setHours(0, 0, 0, 0);
+
+                if (pausedUntil && pausedUntil >= dayBeforeNow) {
+                    // Pause covers the missed day — keep streak, just increment as if yesterday
+                    stats.streaks.current = (stats.streaks.current || 0) + 1;
+                    isNewRegularStreak = true;
+                } else {
+                    // No pause — streak broken, restart
+                    stats.streaks.current = 1;
+                    isNewRegularStreak = true;
+                }
+                // Consume the pause regardless (one-time use)
+                stats.streaks.regularPausedUntil = null;
             }
         }
 
