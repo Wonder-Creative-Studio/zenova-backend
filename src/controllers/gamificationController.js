@@ -759,7 +759,7 @@ export const pauseStreak = async (req, res) => {
 };
 
 /**
- * Get quest journey — one node per day since the user joined (Day 0 = createdAt → today)
+ * Get quest journey — last 7 days (Day 0 = 6 days ago → Day 6 = today)
  * GET /api/gamification/quests/journey
  */
 export const getQuestJourney = async (req, res) => {
@@ -767,7 +767,7 @@ export const getQuestJourney = async (req, res) => {
         const userId = req.user.id;
 
         const [user, allQuests] = await Promise.all([
-            User.findById(userId).select('questsCompleted createdAt').lean(),
+            User.findById(userId).select('questsCompleted').lean(),
             Quest.find({ isActive: true, category: 'daily' }).select('_id').lean(),
         ]);
 
@@ -777,26 +777,27 @@ export const getQuestJourney = async (req, res) => {
 
         const totalQuests = allQuests.length;
 
-        // Build a map: dateString (YYYY-MM-DD) → count of distinct quest completions that day
-        const completionsByDate = new Map();
-        for (const entry of (user.questsCompleted || [])) {
-            if (!entry.completedAt) continue;
-            const dateStr = new Date(entry.completedAt).toISOString().split('T')[0];
-            completionsByDate.set(dateStr, (completionsByDate.get(dateStr) || 0) + 1);
-        }
-
-        // Day 0 = the calendar day the user joined (createdAt midnight)
-        const joinDate = new Date(user.createdAt);
-        joinDate.setHours(0, 0, 0, 0);
-
         const todayDate = new Date();
         todayDate.setHours(0, 0, 0, 0);
 
-        const totalDays = Math.floor((todayDate - joinDate) / 86400000) + 1; // inclusive
-        const journey = [];
+        // Window: last 7 days (Day 0 = 6 days ago, Day 6 = today)
+        const WINDOW = 7;
+        const windowStart = new Date(todayDate.getTime() - (WINDOW - 1) * 86400000);
 
-        for (let i = 0; i < totalDays; i++) {
-            const day = new Date(joinDate.getTime() + i * 86400000);
+        // Build a map: dateString (YYYY-MM-DD) → count of quest completions that day
+        const completionsByDate = new Map();
+        for (const entry of (user.questsCompleted || [])) {
+            if (!entry.completedAt) continue;
+            const d = new Date(entry.completedAt);
+            d.setHours(0, 0, 0, 0);
+            if (d < windowStart) continue; // outside the 7-day window
+            const dateStr = d.toISOString().split('T')[0];
+            completionsByDate.set(dateStr, (completionsByDate.get(dateStr) || 0) + 1);
+        }
+
+        const journey = [];
+        for (let i = 0; i < WINDOW; i++) {
+            const day = new Date(windowStart.getTime() + i * 86400000);
             const dateStr = day.toISOString().split('T')[0];
             const questsCompleted = completionsByDate.get(dateStr) || 0;
             journey.push({
@@ -812,9 +813,9 @@ export const getQuestJourney = async (req, res) => {
         return res.json({
             success: true,
             data: {
-                journey,
-                currentDay: totalDays - 1,
-                totalDays,
+                journey,        // 7 items: Day 0 (6 days ago) → Day 6 (today)
+                currentDay: WINDOW - 1,
+                totalDays: WINDOW,
             },
             message: 'Quest journey fetched successfully',
         });
