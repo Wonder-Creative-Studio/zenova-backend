@@ -21,8 +21,12 @@ import habitRoutes from './habitRoutes'
 import readingRoutes from './readingRoutes';
 import measurementRoutes from './measurementRoutes';
 import gamificationRoutes from './gamificationRoutes';
+import adminRoutes from './admin';
 
 const router = Router();
+
+// Admin panel API (Phase 1 + 2)
+router.use('/admin', adminRoutes);
 
 router.use('/auth', authRoute);
 router.use('/onboard', onboardingRoutes);

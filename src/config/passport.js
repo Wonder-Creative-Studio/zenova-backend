@@ -16,8 +16,8 @@ passport.use(
 	new JwtStrategy(
 		{
 			jwtFromRequest: cookieExtractor,
-			secretOrKey: config.JWT_ACCESS_TOKEN_SECRET_PUBLIC,
-			algorithms: 'RS256'
+			secretOrKey: config.JWT_ACCESS_TOKEN_SECRET_PRIVATE,
+			algorithms: ['HS256']
 		},
 		async (jwtPayload, done) => {
 			try {

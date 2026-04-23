@@ -185,7 +185,11 @@ const userSchema = new mongoose.Schema(
     fcmTokens: {
       type: [String],
       default: [],
-    }
+    },
+    // Admin — ban/suspension fields (Admin Panel Phase 1)
+    isBanned:     { type: Boolean, default: false, index: true },
+    bannedAt:     { type: Date,   default: null },
+    bannedReason: { type: String, default: null },
   },
   {
     timestamps: true,
