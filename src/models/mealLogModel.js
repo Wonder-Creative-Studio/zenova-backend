@@ -12,6 +12,19 @@ const mealLogSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  foodCatalogId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'foodCatalog',
+    index: true,
+  },
+  quantity: {
+    type: Number,
+    min: 0,
+  },
+  unit: {
+    type: String,
+    trim: true,
+  },
   calories: {
     type: Number,
     required: true,

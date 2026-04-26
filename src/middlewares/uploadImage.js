@@ -24,9 +24,9 @@ const upload = multer({
 		fileSize: 6 * 1024 * 1024
 	},
 	fileFilter: (req, file, callback) => {
-		var ext = path.extname(file.originalname);
+		var ext = path.extname(file.originalname).toLowerCase();
 		if (ext !== '.png' && ext !== '.jpg' && ext !== '.gif' && ext !== '.jpeg') {
-			return callback(new APIError('File image unsupported', httpStatus.BAD_REQUEST));
+			return callback(new Error('Unsupported file extension. Only .png, .jpg, .jpeg, and .gif are allowed.'));
 		}
 		callback(null, true);
 	}

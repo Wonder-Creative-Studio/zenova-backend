@@ -3,6 +3,7 @@ import MealPlan from '~/models/mealPlanModel';
 import MealLog from '~/models/mealLogModel';
 import GroceryList from '~/models/groceryListModel';
 import User from '~/models/userModel';
+import FoodCatalog from '~/models/foodCatalogModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import questService from '~/services/questService';
@@ -92,11 +93,44 @@ export const generateMealPlan = async (req, res) => {
 export const logMeal = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { food, calories, protein, carbs, fats, mealTime } = req.body;
+    const { foodCatalogId, quantity, unit, mealTime } = req.body;
+    let { food, calories, protein, carbs, fats } = req.body;
+
+    // Catalog-shape: resolve nutrition server-side
+    if (foodCatalogId) {
+      const catalog = await FoodCatalog.findById(foodCatalogId);
+      if (!catalog) {
+        return res.status(404).json({
+          success: false,
+          data: {},
+          message: 'Food catalog item not found',
+        });
+      }
+
+      const opts = catalog.servingOptions || [];
+      const opt = opts.find(o => o.unit === unit) || opts[0] || { grams: 1 };
+      const grams = (opt.grams || 1) * (quantity || 0);
+      const factor = grams / 100;
+
+      food = catalog.name;
+      calories = Math.round((catalog.kcalPer100g || 0) * factor);
+      protein = Math.round((catalog.proteinPer100g || 0) * factor * 10) / 10;
+      carbs = Math.round((catalog.carbsPer100g || 0) * factor * 10) / 10;
+      fats = Math.round((catalog.fatPer100g || 0) * factor * 10) / 10;
+
+      // Bump catalog query stats so frequently-tracked stays accurate
+      await FoodCatalog.updateOne(
+        { _id: foodCatalogId },
+        { $inc: { queryCount: 1 }, $set: { lastQueriedAt: new Date() } }
+      );
+    }
 
     const mealLog = new MealLog({
       userId,
       food,
+      foodCatalogId: foodCatalogId || undefined,
+      quantity: quantity ?? undefined,
+      unit: unit || undefined,
       calories,
       protein,
       carbs,
@@ -245,15 +279,22 @@ export const generateGroceryList = async (req, res) => {
 export const getMealLogs = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, date, mealTime } = req.query;
 
-    const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const end = endDate ? new Date(endDate) : new Date();
+    let start, end;
+    if (date) {
+      const day = date === 'today' ? new Date() : new Date(date);
+      start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+      end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    } else {
+      start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      end = endDate ? new Date(endDate) : new Date();
+    }
 
-    const logs = await MealLog.find({
-      userId,
-      loggedAt: { $gte: start, $lte: end },
-    }).sort({ loggedAt: -1 });
+    const filter = { userId, loggedAt: { $gte: start, $lt: end } };
+    if (mealTime) filter.mealTime = mealTime;
+
+    const logs = await MealLog.find(filter).sort({ loggedAt: -1 });
 
     return res.json({
       success: true,

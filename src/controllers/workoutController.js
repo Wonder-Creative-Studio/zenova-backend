@@ -14,14 +14,15 @@ const calculateExerciseCalories = (durationMin, estimatedBurnPerMin, weightKg = 
 
 export const getExerciseLibrary = async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, limit } = req.query;
 
-    let query = {};
-    if (category) {
-      query.category = category;
-    }
+    const query = {};
+    if (category) query.category = category;
 
-    const exercises = await Exercise.find(query).sort({ name: 1 });
+    let cursor = Exercise.find(query).sort({ name: 1 });
+    if (limit) cursor = cursor.limit(parseInt(limit, 10));
+
+    const exercises = await cursor;
 
     return res.json({
       success: true,
@@ -33,6 +34,83 @@ export const getExerciseLibrary = async (req, res) => {
       success: false,
       data: {},
       message: err.message || 'Failed to fetch exercise library',
+    });
+  }
+};
+
+export const getExerciseCategories = async (req, res) => {
+  try {
+    const grouped = await Exercise.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $project: { _id: 0, name: '$_id', count: 1 } },
+      { $sort: { name: 1 } },
+    ]);
+
+    return res.json({
+      success: true,
+      data: { categories: grouped },
+      message: 'Exercise categories fetched successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to fetch exercise categories',
+    });
+  }
+};
+
+export const searchExercises = async (req, res) => {
+  try {
+    const { q, limit } = req.query;
+
+    let exercises = await Exercise.find(
+      { $text: { $search: q } },
+      { score: { $meta: 'textScore' } }
+    )
+      .sort({ score: { $meta: 'textScore' } })
+      .limit(limit || 20);
+
+    if (exercises.length === 0) {
+      exercises = await Exercise.find({ name: { $regex: q, $options: 'i' } })
+        .sort({ name: 1 })
+        .limit(limit || 20);
+    }
+
+    return res.json({
+      success: true,
+      data: { exercises },
+      message: 'Exercise search results',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to search exercises',
+    });
+  }
+};
+
+export const getExerciseById = async (req, res) => {
+  try {
+    const exercise = await Exercise.findById(req.params.id);
+    if (!exercise) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Exercise not found',
+      });
+    }
+    return res.json({
+      success: true,
+      data: exercise,
+      message: 'Exercise fetched successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to fetch exercise',
     });
   }
 };
@@ -444,6 +522,9 @@ export const getWorkoutStreak = async (req, res) => {
 
 export default {
   getExerciseLibrary,
+  getExerciseCategories,
+  searchExercises,
+  getExerciseById,
   createWorkoutPlan,
   logWorkout,
   getWorkoutProgress,

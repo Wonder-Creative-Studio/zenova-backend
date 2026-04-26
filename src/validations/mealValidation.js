@@ -9,11 +9,37 @@ export const generateMealPlan = {
 
 export const logMeal = {
   body: Joi.object().keys({
-    food: Joi.string().trim().min(1).max(200).required(),
-    calories: Joi.number().min(0).max(10000).required(),
-    protein: Joi.number().min(0).max(1000).required(),
-    carbs: Joi.number().min(0).max(1000).required(),
-    fats: Joi.number().min(0).max(1000).required(),
+    // Catalog-shape fields (preferred; nutrition resolved server-side)
+    foodCatalogId: Joi.string().hex().length(24).optional(),
+    quantity: Joi.number().min(0).optional(),
+    unit: Joi.string().optional(),
+
+    // Free-text fields (required only when foodCatalogId is absent)
+    food: Joi.string().trim().min(1).max(200).when('foodCatalogId', {
+      is: Joi.exist(),
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }),
+    calories: Joi.number().min(0).max(10000).when('foodCatalogId', {
+      is: Joi.exist(),
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }),
+    protein: Joi.number().min(0).max(1000).when('foodCatalogId', {
+      is: Joi.exist(),
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }),
+    carbs: Joi.number().min(0).max(1000).when('foodCatalogId', {
+      is: Joi.exist(),
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }),
+    fats: Joi.number().min(0).max(1000).when('foodCatalogId', {
+      is: Joi.exist(),
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }),
     mealTime: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').required(),
   }),
 };
@@ -28,6 +54,8 @@ export const getMealLogs = {
   query: Joi.object().keys({
     startDate: Joi.date().optional(),
     endDate: Joi.date().optional(),
+    date: Joi.alternatives(Joi.date(), Joi.string().valid('today')).optional(),
+    mealTime: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').optional(),
   }),
 };
 

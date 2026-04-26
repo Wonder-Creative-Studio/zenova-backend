@@ -49,6 +49,7 @@ jobs:
               -p 8000:8000 \
               --name zenova-api \
               --restart unless-stopped \
+              -e NODE_ENV="production" \
               -e APP_NAME="Zenova" \
               -e HOST="localhost" \
               -e PORT=8000 \
@@ -80,5 +81,10 @@ jobs:
               -e APPLE_CLIENT_ID="${{ secrets.APPLE_CLIENT_ID }}" \
               -e APPLE_TEAM_ID="${{ secrets.APPLE_TEAM_ID }}" \
               -e APPLE_KEY_ID="${{ secrets.APPLE_KEY_ID }}" \
+              -e USDA_API_KEY="${{ secrets.USDA_API_KEY }}" \
+              -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+              -e VECTOR_DB_URL="${{ secrets.VECTOR_DB_URL }}" \
+              -e VECTOR_DB_API_KEY="${{ secrets.VECTOR_DB_API_KEY }}" \
+              -e VECTOR_DB_PROVIDER="${{ secrets.VECTOR_DB_PROVIDER }}" \
               moinaknaskar/zenova:latest
           EOF
