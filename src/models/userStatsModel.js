@@ -42,10 +42,12 @@ const userStatsSchema = new mongoose.Schema({
     streaks: {
         current: { type: Number, default: 0 },
         longest: { type: Number, default: 0 },
-        lastActiveDate: { type: Date },   // last day the user tracked ANY item
+        lastActiveDate: { type: Date },        // last day the user tracked ANY item
+        regularPausedUntil: { type: Date },    // if set, regular streak is protected through this date
         novaCurrent: { type: Number, default: 0 },
         novaLongest: { type: Number, default: 0 },
-        lastNovaLogDate: { type: Date }
+        lastNovaLogDate: { type: Date },
+        novaPausedUntil: { type: Date },       // if set, nova streak is protected through this date
     },
 
     // Activity tracking for weekly quests

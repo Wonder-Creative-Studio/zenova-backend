@@ -19,21 +19,21 @@ const chatMessageSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['user', 'assistant'],
+      enum: ['user', 'assistant', 'system'], // Combined: added 'system' from main
       required: true,
     },
     content: {
       type: String,
       required: true,
     },
-    agent: {
+    agent: { // Kept your admin agent field
       type: String,
       enum: ['calia', 'noura', 'aeron'],
       default: null,
     },
     model: {
       type: String,
-      default: null, // e.g. 'gpt-4o', 'meta-llama/llama-3-8b-instruct'
+      default: null,
     },
     tokensIn: {
       type: Number,
@@ -47,10 +47,16 @@ const chatMessageSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    clientMsgId: { // Added from main for message tracking
+      type: String,
+      default: null,
+      index: true
+    },
   },
   { timestamps: true }
 );
 
+// Keep all indexes from both branches
 chatMessageSchema.index({ threadId: 1, createdAt: 1 });
 chatMessageSchema.index({ userId: 1, createdAt: -1 });
 chatMessageSchema.index({ createdAt: -1 });

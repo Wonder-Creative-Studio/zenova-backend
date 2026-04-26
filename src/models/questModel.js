@@ -9,6 +9,7 @@ const questSchema = new mongoose.Schema({
     required: true
   },
   rewardCoins: { type: Number, default: 0 },
+  rewardMedals: { type: Number, default: 0 },
   badge: {
     name: String,
     icon: String,

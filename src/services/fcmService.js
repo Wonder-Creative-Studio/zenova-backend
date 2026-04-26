@@ -49,9 +49,6 @@ export const sendPushNotification = async (deviceToken, title, body, data = {}) 
           'content-available': 1,
         },
       },
-      fcmOptions: {
-        url: 'https://zenova.app',
-      },
     },
   };
 

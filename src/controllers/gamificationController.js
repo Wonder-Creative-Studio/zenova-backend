@@ -4,13 +4,111 @@ import APIError from '~/utils/apiError';
 import gamificationService from '~/services/gamificationService';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import novaCoinsService from '~/services/novaCoinsService';
-import questService from '~/services/questService';
 import statsService from '~/services/statsService';
 import NovaTransaction from '~/models/novaTransactionModel';
 import LevelReward from '~/models/levelRewardModel';
 import UserStats from '~/models/userStatsModel';
 import User from '~/models/userModel';
+import Quest from '~/models/questModel';
 import configV2 from '~/config/gamificationV2';
+
+// Returns 7-day calendar for the current week (Mon–Sun)
+// A day is "completed" if it falls within the active streak window
+const buildWeekCalendar = (currentStreak, lastActiveDate) => {
+    const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Roll back to Monday of current week
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+
+    const lastActive = lastActiveDate ? new Date(lastActiveDate) : null;
+    if (lastActive) lastActive.setHours(0, 0, 0, 0);
+
+    // Streak start date (first day of current streak)
+    const streakStart = (lastActive && currentStreak > 0)
+        ? new Date(lastActive.getTime() - (currentStreak - 1) * 86400000)
+        : null;
+
+    const calendar = [];
+    for (let i = 0; i < 7; i++) {
+        const day = new Date(monday.getTime() + i * 86400000);
+        const isFuture = day > today;
+        const completed = !isFuture && streakStart !== null && day >= streakStart && day <= (lastActive || today);
+        calendar.push({
+            date: day.toISOString().split('T')[0],
+            day: DAY_LABELS[day.getDay()],
+            completed: Boolean(completed),
+            isToday: day.getTime() === today.getTime(),
+            isFuture,
+        });
+    }
+    return calendar;
+};
+
+// Pure helper — builds period-aware quest response from already-fetched arrays (no DB calls)
+const buildQuestResponse = (questsCompleted, allQuests, period) => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek  = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay()); // roll back to Sunday
+
+    // Latest completedAt per questId (daily/weekly quests accumulate entries across resets)
+    const completionMap = new Map();
+    for (const entry of (questsCompleted || [])) {
+        const key = entry.questId?.toString();
+        if (!key) continue;
+        const existing = completionMap.get(key);
+        if (!existing || entry.completedAt > existing) completionMap.set(key, entry.completedAt);
+    }
+
+    const enriched = allQuests.map(quest => {
+        const completedAt = completionMap.get(quest._id.toString());
+        let isCompleted = false;
+        if (completedAt) {
+            if (quest.category === 'daily')       isCompleted = completedAt >= startOfToday;
+            else if (quest.category === 'weekly') isCompleted = completedAt >= startOfWeek;
+            else                                  isCompleted = true; // milestone, special: one-shot
+        }
+        return {
+            id: quest._id,
+            title: quest.title,
+            description: quest.description,
+            category: quest.category,
+            rewardCoins: quest.rewardCoins,
+            rewardMedals: quest.rewardMedals || 0,
+            badge: quest.badge || null,
+            isCompleted,
+            completedAt: isCompleted ? completedAt : null,
+            coinsAwarded: isCompleted ? (quest.rewardCoins || 0) : 0
+        };
+    });
+
+    const completedQuests = enriched.filter(q => q.isCompleted);
+    const total           = enriched.length;
+    const completedCount  = completedQuests.length;
+
+    return {
+        period: period || 'all',
+        config: {
+            startCost: configV2.QUEST_CONFIG.startCost,
+            skipPenalty: configV2.QUEST_CONFIG.skipPenalty,
+        },
+        summary: {
+            total,
+            completed: completedCount,
+            completionRate: total > 0 ? Math.round((completedCount / total) * 100) : 0,
+            coinsEarned: completedQuests.reduce((sum, q) => sum + q.coinsAwarded, 0),
+            medalsEarned: completedQuests.reduce((sum, q) => sum + (q.rewardMedals || 0), 0),
+        },
+        quests: enriched,
+        active: enriched.filter(q => !q.isCompleted),  // legacy compat
+        completed: completedQuests,                     // legacy compat
+        total,                                          // legacy compat
+        completedCount                                  // legacy compat
+    };
+};
 
 /**
  * Get complete gamification summary
@@ -127,21 +225,25 @@ export const getEarningsBreakdown = async (req, res) => {
  */
 export const getQuests = async (req, res) => {
     try {
-        const userId = req.user.id;
-        const quests = await questService.getUserQuests(userId);
+        const VALID_PERIODS = ['daily', 'weekly', 'milestone', 'special'];
+        const period = req.query.period?.toLowerCase();
+        if (period && !VALID_PERIODS.includes(period)) {
+            return res.status(400).json({
+                success: false, data: {},
+                message: 'Invalid period. Must be one of: daily, weekly, milestone, special'
+            });
+        }
 
-        const completed = quests.filter(q => q.isCompleted);
-        const active = quests.filter(q => !q.isCompleted);
+        const questFilter = period ? { isActive: true, category: period } : { isActive: true };
+        const [user, allQuests] = await Promise.all([
+            User.findById(req.user.id).select('questsCompleted').lean(),
+            Quest.find(questFilter).lean()
+        ]);
 
         return res.json({
             success: true,
-            data: {
-                active,
-                completed,
-                total: quests.length,
-                completedCount: completed.length
-            },
-            message: 'Quests fetched successfully',
+            data: buildQuestResponse(user?.questsCompleted, allQuests, period),
+            message: 'Quests fetched successfully'
         });
     } catch (err) {
         return res.status(400).json({
@@ -298,15 +400,16 @@ export const testV2GameLogic = async (req, res) => {
  *
  * Query params:
  *   include  - comma-separated list of sections to include.
- *              Available: profile, medals, streaks, today, rank, levelMap, rewards
+ *              Available: profile, medals, streaks, today, rank, levelMap, rewards, quests
  *              Omit to receive ALL sections.
+ *   questPeriod - optional: daily, weekly, milestone, special (used only when quests section is included)
  */
 export const getV2State = async (req, res) => {
     try {
         const userId = req.user.id;
 
         // Determine which sections to include (default = all)
-        const ALL_SECTIONS = ['profile', 'medals', 'streaks', 'today', 'rank', 'levelMap', 'rewards'];
+        const ALL_SECTIONS = ['profile', 'medals', 'streaks', 'today', 'rank', 'levelMap', 'rewards', 'quests'];
         const includeParam = req.query.include;
         const sections = includeParam
             ? includeParam.split(',').map(s => s.trim().toLowerCase()).filter(s => ALL_SECTIONS.includes(s))
@@ -315,19 +418,27 @@ export const getV2State = async (req, res) => {
         const wantAll = (s) => sections.includes(s);
 
         // ── Parallel DB fetches ───────────────────────────────────────────────
-        const [user, stats, rewards] = await Promise.all([
-            (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap'))
-                ? User.findById(userId).select('name email profilePicture novaCoins medals level rank')
+        const questPeriod = wantAll('quests') ? (req.query.questPeriod?.toLowerCase() || undefined) : undefined;
+        const questFilter = wantAll('quests')
+            ? (questPeriod ? { isActive: true, category: questPeriod } : { isActive: true })
+            : null;
+
+        const [user, stats, rewards, allQuests] = await Promise.all([
+            (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap') || wantAll('quests'))
+                ? User.findById(userId).select('name email profilePicture novaCoins medals level rank questsCompleted').lean()
                 : Promise.resolve(null),
             (wantAll('streaks') || wantAll('today') || wantAll('medals'))
-                ? UserStats.findOne({ userId })
+                ? UserStats.findOne({ userId }).lean()
                 : Promise.resolve(null),
             wantAll('rewards')
                 ? LevelReward.find({ userId }).sort({ level: 1 }).lean()
                 : Promise.resolve([]),
+            questFilter
+                ? Quest.find(questFilter).lean()
+                : Promise.resolve([]),
         ]);
 
-        if (!user && (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap'))) {
+        if (!user && (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap') || wantAll('quests'))) {
             throw new APIError('User not found', httpStatus.NOT_FOUND);
         }
 
@@ -386,16 +497,46 @@ export const getV2State = async (req, res) => {
         }
 
         if (wantAll('streaks')) {
+            const regCurrent  = stats?.streaks?.current || 0;
+            const novaCurrent = stats?.streaks?.novaCurrent || 0;
+            const regBoost    = Math.min(1.5, 1.0 + Math.floor(regCurrent / 7) * 0.10);
+            const novaBoost   = Math.min(2.0, 1.0 + Math.floor(novaCurrent / 7) * 0.20);
+
+            const regDaysUntilNext  = regCurrent > 0 ? ((7 - (regCurrent % 7)) % 7 || 7) : 7;
+            const novaDaysUntilNext = novaCurrent > 0 ? ((7 - (novaCurrent % 7)) % 7 || 7) : 7;
+            const regNextBoostPct   = Math.min(50, (Math.floor(regCurrent / 7) + 1) * 10);
+            const novaNextBoostPct  = Math.min(100, (Math.floor(novaCurrent / 7) + 1) * 20);
+
             data.streaks = {
                 regular: {
-                    current: stats?.streaks?.current || 0,
+                    current: regCurrent,
                     longest: stats?.streaks?.longest || 0,
                     lastActiveDate: stats?.streaks?.lastActiveDate || null,
+                    boostMultiplier: regBoost,
+                    pauseCost: configV2.STREAK_PAUSE_COST,
+                    nextMilestone: {
+                        daysLeft: regDaysUntilNext,
+                        boostGain: regNextBoostPct,
+                        message: regCurrent > 0
+                            ? `${regDaysUntilNext} more day${regDaysUntilNext !== 1 ? 's' : ''} for a ${regNextBoostPct}% coin boost!`
+                            : 'Start your streak today!',
+                    },
+                    weekCalendar: buildWeekCalendar(regCurrent, stats?.streaks?.lastActiveDate),
                 },
                 nova: {
-                    current: stats?.streaks?.novaCurrent || 0,
+                    current: novaCurrent,
                     longest: stats?.streaks?.novaLongest || 0,
                     lastNovaLogDate: stats?.streaks?.lastNovaLogDate || null,
+                    boostMultiplier: novaBoost,
+                    pauseCost: configV2.STREAK_PAUSE_COST,
+                    nextMilestone: {
+                        daysLeft: novaDaysUntilNext,
+                        boostGain: novaNextBoostPct,
+                        message: novaCurrent > 0
+                            ? `+${novaNextBoostPct}% Nova Coin earnings in ${novaDaysUntilNext} more day${novaDaysUntilNext !== 1 ? 's' : ''}!`
+                            : 'Track all 3 categories today to start your Nova Streak!',
+                    },
+                    weekCalendar: buildWeekCalendar(novaCurrent, stats?.streaks?.lastNovaLogDate),
                 },
                 boostMultiplier: streakBoostMultiplier,
                 effectiveDailyNCCap: Math.floor(rankConfig.maxDailyNC * streakBoostMultiplier * rankConfig.ncMultiplier),
@@ -451,6 +592,10 @@ export const getV2State = async (req, res) => {
             };
         }
 
+        if (wantAll('quests')) {
+            data.quests = buildQuestResponse(user?.questsCompleted, allQuests, questPeriod);
+        }
+
         return res.json({
             success: true,
             data,
@@ -469,15 +614,232 @@ export const getV2State = async (req, res) => {
     }
 };
 
+export const getStreaks = async (req, res) => {
+    try {
+        const stats = await UserStats.findOne({ userId: req.user.id }).lean();
+
+        const regCurrent  = stats?.streaks?.current || 0;
+        const novaCurrent = stats?.streaks?.novaCurrent || 0;
+
+        // V2 boost formula
+        const regBoost  = Math.min(1.5, 1.0 + Math.floor(regCurrent / 7) * 0.10);
+        const novaBoost = Math.min(2.0, 1.0 + Math.floor(novaCurrent / 7) * 0.20);
+        const effectiveBoost = novaCurrent > 0 ? novaBoost : regBoost;
+
+        // Days until next 7-day milestone
+        const regDaysUntilNext  = regCurrent > 0 ? ((7 - (regCurrent % 7)) % 7 || 7) : 7;
+        const novaDaysUntilNext = novaCurrent > 0 ? ((7 - (novaCurrent % 7)) % 7 || 7) : 7;
+        const regNextBoostPct   = Math.min(50, (Math.floor(regCurrent / 7) + 1) * 10);
+        const novaNextBoostPct  = Math.min(100, (Math.floor(novaCurrent / 7) + 1) * 20);
+
+        return res.json({
+            success: true,
+            data: {
+                regular: {
+                    current: regCurrent,
+                    longest: stats?.streaks?.longest || 0,
+                    lastActiveDate: stats?.streaks?.lastActiveDate || null,
+                    boostMultiplier: regBoost,
+                    pauseCost: configV2.STREAK_PAUSE_COST,
+                    nextMilestone: {
+                        daysLeft: regDaysUntilNext,
+                        boostGain: regNextBoostPct,
+                        message: regCurrent > 0
+                            ? `${regDaysUntilNext} more day${regDaysUntilNext !== 1 ? 's' : ''} for a ${regNextBoostPct}% coin boost!`
+                            : 'Start your streak today!',
+                    },
+                    weekCalendar: buildWeekCalendar(regCurrent, stats?.streaks?.lastActiveDate),
+                },
+                nova: {
+                    current: novaCurrent,
+                    longest: stats?.streaks?.novaLongest || 0,
+                    lastNovaLogDate: stats?.streaks?.lastNovaLogDate || null,
+                    boostMultiplier: novaBoost,
+                    pauseCost: configV2.STREAK_PAUSE_COST,
+                    nextMilestone: {
+                        daysLeft: novaDaysUntilNext,
+                        boostGain: novaNextBoostPct,
+                        message: novaCurrent > 0
+                            ? `+${novaNextBoostPct}% Nova Coin earnings in ${novaDaysUntilNext} more day${novaDaysUntilNext !== 1 ? 's' : ''}!`
+                            : 'Track all 3 categories today to start your Nova Streak!',
+                    },
+                    weekCalendar: buildWeekCalendar(novaCurrent, stats?.streaks?.lastNovaLogDate),
+                },
+                effectiveBoost,
+            },
+            message: 'Streaks fetched successfully',
+        });
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            data: {},
+            message: err.message || 'Failed to fetch streaks'
+        });
+    }
+};
+
+/**
+ * Pause a streak for 1 day (costs STREAK_PAUSE_COST Nova Coins)
+ * POST /api/gamification/streaks/pause
+ * Body: { streakType: 'regular' | 'nova' }
+ */
+export const pauseStreak = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { streakType = 'regular' } = req.body;
+
+        if (!['regular', 'nova'].includes(streakType)) {
+            return res.status(400).json({
+                success: false,
+                data: {},
+                message: "streakType must be 'regular' or 'nova'",
+            });
+        }
+
+        const stats = await UserStats.findOne({ userId }).lean();
+        if (!stats) {
+            return res.status(404).json({ success: false, data: {}, message: 'Stats not found' });
+        }
+
+        const streakField = streakType === 'nova' ? 'novaCurrent' : 'current';
+        const pauseField  = streakType === 'nova' ? 'novaPausedUntil' : 'regularPausedUntil';
+
+        if (!stats.streaks?.[streakField] || stats.streaks[streakField] < 1) {
+            return res.status(400).json({
+                success: false,
+                data: {},
+                message: `No active ${streakType} streak to pause`,
+            });
+        }
+
+        // Check if already paused
+        const existing = stats.streaks?.[pauseField];
+        if (existing && new Date(existing) > new Date()) {
+            return res.status(400).json({
+                success: false,
+                data: {},
+                message: `${streakType === 'nova' ? 'Nova' : 'Regular'} streak is already paused`,
+            });
+        }
+
+        // Deduct coins (throws 'Insufficient NovaCoins' if not enough)
+        const { balance } = await novaCoinsService.spendCoins(userId, {
+            amount: configV2.STREAK_PAUSE_COST,
+            category: 'streak_pause',
+            description: `Paused ${streakType} streak for 1 day`,
+        });
+
+        // Set pausedUntil = tomorrow midnight (protects the next missed day)
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(23, 59, 59, 999);
+
+        await UserStats.findOneAndUpdate(
+            { userId },
+            { $set: { [`streaks.${pauseField}`]: tomorrow } }
+        );
+
+        return res.json({
+            success: true,
+            data: {
+                streakType,
+                pausedUntil: tomorrow,
+                coinsSpent: configV2.STREAK_PAUSE_COST,
+                newBalance: balance,
+            },
+            message: `${streakType === 'nova' ? 'Nova' : 'Regular'} streak paused for 1 day`,
+        });
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            data: {},
+            message: err.message || 'Failed to pause streak',
+        });
+    }
+};
+
+/**
+ * Get quest journey — last 7 days (Day 0 = 6 days ago → Day 6 = today)
+ * GET /api/gamification/quests/journey
+ */
+export const getQuestJourney = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const [user, allQuests] = await Promise.all([
+            User.findById(userId).select('questsCompleted').lean(),
+            Quest.find({ isActive: true, category: 'daily' }).select('_id').lean(),
+        ]);
+
+        if (!user) {
+            return res.status(404).json({ success: false, data: {}, message: 'User not found' });
+        }
+
+        const totalQuests = allQuests.length;
+
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+
+        // Window: last 7 days (Day 0 = 6 days ago, Day 6 = today)
+        const WINDOW = 7;
+        const windowStart = new Date(todayDate.getTime() - (WINDOW - 1) * 86400000);
+
+        // Build a map: dateString (YYYY-MM-DD) → count of quest completions that day
+        const completionsByDate = new Map();
+        for (const entry of (user.questsCompleted || [])) {
+            if (!entry.completedAt) continue;
+            const d = new Date(entry.completedAt);
+            d.setHours(0, 0, 0, 0);
+            if (d < windowStart) continue; // outside the 7-day window
+            const dateStr = d.toISOString().split('T')[0];
+            completionsByDate.set(dateStr, (completionsByDate.get(dateStr) || 0) + 1);
+        }
+
+        const journey = [];
+        for (let i = 0; i < WINDOW; i++) {
+            const day = new Date(windowStart.getTime() + i * 86400000);
+            const dateStr = day.toISOString().split('T')[0];
+            const questsCompleted = completionsByDate.get(dateStr) || 0;
+            journey.push({
+                day: i,
+                date: dateStr,
+                questsCompleted,
+                totalQuests,
+                allCompleted: totalQuests > 0 && questsCompleted >= totalQuests,
+                isToday: day.getTime() === todayDate.getTime(),
+            });
+        }
+
+        return res.json({
+            success: true,
+            data: {
+                journey,        // 7 items: Day 0 (6 days ago) → Day 6 (today)
+                currentDay: WINDOW - 1,
+                totalDays: WINDOW,
+            },
+            message: 'Quest journey fetched successfully',
+        });
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            data: {},
+            message: err.message || 'Failed to fetch quest journey',
+        });
+    }
+};
+
 export default {
     getSummary,
     getCoinsBalance,
     getCoinsHistory,
     getEarningsBreakdown,
     getQuests,
+    getQuestJourney,
     getStats,
     getLevelRewards,
     getLeaderboard,
     testV2GameLogic,
-    getV2State
+    getV2State,
+    getStreaks,
+    pauseStreak,
 };
