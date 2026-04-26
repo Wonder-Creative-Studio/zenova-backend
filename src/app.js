@@ -27,7 +27,22 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(compression());
-app.use(cors());
+const ALLOWED_ORIGINS = [
+	'http://localhost:5173',
+	'http://localhost:3000',
+	'http://localhost:5174',
+	config.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(cors({
+	origin: (origin, cb) => {
+		// Allow requests with no origin (e.g. mobile apps, curl, Postman)
+		if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+		if (config.NODE_ENV === 'development') return cb(null, true); // allow all in dev
+		return cb(new Error('Blocked by CORS'), false);
+	},
+	credentials: true,
+}));
 
 app.use(rateLimiter);
 app.use(passport.initialize());
