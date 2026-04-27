@@ -15,37 +15,35 @@ const exerciseSchema = new mongoose.Schema({
   },
   videoUrl: {
     type: String,
-    required: true,
-    },
+  },
   durationMin: {
     type: Number,
     required: true,
     min: 1,
   },
-  targetAreas: [String], // e.g., ['Legs', 'Core', 'Arms']
-  videoUrl: {
+  targetAreas: [String],
+  defaultSets: { type: Number, default: 3 },
+  defaultReps: { type: Number, default: 10 },
+  defaultWeightKg: { type: Number, default: 0 },
+  estimatedBurnPerMin: { type: Number, default: 5 },
+
+  // Wger-sync fields
+  externalSource: { type: String, enum: ['wger', 'custom'], default: 'custom', index: true },
+  externalId: { type: Number, index: true },
+  gifUrl: { type: String },
+  instructions: { type: String },
+  primaryMuscles: [String],
+  secondaryMuscles: [String],
+  equipment: [String],
+  difficulty: {
     type: String,
-    required: true,
+    enum: ['Beginner', 'Intermediate', 'Advanced'],
+    default: 'Beginner',
   },
-  defaultSets: {
-    type: Number,
-    default: 3,
-  },
-  defaultReps: {
-    type: Number,
-    default: 10,
-  },
-  defaultWeightKg: {
-    type: Number,
-    default: 0,
-  },
-  estimatedBurnPerMin: {
-    type: Number,
-    default: 5, // kcal per minute
-  },
-}, {
-  timestamps: true,
-});
+}, { timestamps: true });
+
+exerciseSchema.index({ name: 'text' });
+exerciseSchema.index({ externalSource: 1, externalId: 1 }, { unique: true, sparse: true });
 
 exerciseSchema.plugin(toJSON);
 

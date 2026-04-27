@@ -3,7 +3,21 @@ import Joi from 'joi';
 
 export const getExerciseLibrary = {
   query: Joi.object().keys({
-    category: Joi.string().valid('Back', 'Chest', 'Biceps', 'Triceps', 'Shoulder', 'Leg', 'Full Body').optional(),
+    category: Joi.string().valid('Back', 'Chest', 'Biceps', 'Triceps', 'Shoulder', 'Leg', 'Full Body', 'Core').optional(),
+    limit: Joi.number().integer().min(1).max(100).optional(),
+  }),
+};
+
+export const searchExercises = {
+  query: Joi.object().keys({
+    q: Joi.string().trim().min(1).max(100).required(),
+    limit: Joi.number().integer().min(1).max(50).default(20),
+  }),
+};
+
+export const getExerciseById = {
+  params: Joi.object().keys({
+    id: Joi.string().hex().length(24).required(),
   }),
 };
 
@@ -59,6 +73,8 @@ export const createExercise = {
 
 export default {
   getExerciseLibrary,
+  searchExercises,
+  getExerciseById,
   createWorkoutPlan,
   logWorkout,
   getWorkoutProgress,

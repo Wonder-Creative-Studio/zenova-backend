@@ -8,7 +8,8 @@
 		"build": "babel src -d dist",
 		"prod": "pm2-runtime start ecosystem.config.js --env production",
 		"seed:gamification": "cross-env NODE_ENV=development babel-node src/scripts/seedGamification.js",
-		"make:admin": "cross-env NODE_ENV=development babel-node src/scripts/makeAdmin.js"
+		"make:admin": "cross-env NODE_ENV=development babel-node src/scripts/makeAdmin.js",
+		"sync:wger": "cross-env NODE_ENV=development babel-node src/scripts/syncWgerExercises.js"
 	},
 	"dependencies": {
 		"@babel/runtime": "^7.15.3",

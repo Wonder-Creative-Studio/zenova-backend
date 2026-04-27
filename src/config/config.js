@@ -27,7 +27,9 @@ const envValidate = Joi.object()
 		EMAIL_FROM: Joi.string().allow('').empty(''),
 
 		FRONTEND_URL: Joi.string().allow('').empty('').default('http://localhost:777'),
-		IMAGE_URL: Joi.string().allow('').empty('').default('http://localhost:666/images')
+		IMAGE_URL: Joi.string().allow('').empty('').default('http://localhost:666/images'),
+
+		USDA_API_KEY: Joi.string().allow('').empty('')
 	})
 	.unknown();
 
@@ -74,6 +76,8 @@ export default {
 	FRONTEND_URL: env.FRONTEND_URL,
 
 	IMAGE_URL: env.IMAGE_URL,
+
+	USDA_API_KEY: env.USDA_API_KEY,
 
 	TOKEN_TYPES: {
 		REFRESH: 'refresh',

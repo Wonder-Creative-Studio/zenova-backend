@@ -71,6 +71,7 @@ const userStatsSchema = new mongoose.Schema({
         moodCoins: { type: Number, default: 0 },
         workoutCoins: { type: Number, default: 0 },
         mealCoins: { type: Number, default: 0 },
+        snapMealCount: { type: Number, default: 0 },
     }
 
 }, { timestamps: true });
@@ -130,6 +131,7 @@ userStatsSchema.statics.resetDailyStats = async function () {
                 'today.moodCoins': 0,
                 'today.workoutCoins': 0,
                 'today.mealCoins': 0,
+                'today.snapMealCount': 0,
             }
         }
     );
