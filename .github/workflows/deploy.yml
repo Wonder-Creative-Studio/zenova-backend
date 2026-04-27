@@ -18,7 +18,7 @@ jobs:
         run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
 
       - name: Build Docker Image
-        run: docker compose build
+        run: docker compose build --no-cache
 
       - name: Push to DockerHub
         run: docker compose push

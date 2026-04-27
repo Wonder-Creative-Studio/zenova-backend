@@ -37,7 +37,7 @@ export const generateAuthTokens = async (user) => {
 		payload,
 		accessTokenExpires,
 		config.JWT_ACCESS_TOKEN_SECRET_PRIVATE,
-		{ algorithm: 'HS256' }
+		{ algorithm: 'RS256' }
 	);
 
 	// DEBUG 2 — raw token
