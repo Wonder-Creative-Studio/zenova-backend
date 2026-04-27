@@ -18,7 +18,7 @@ jobs:
         run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
 
       - name: Build Docker Image
-        run: docker compose build --no-cache
+        run: docker compose build
 
       - name: Push to DockerHub
         run: docker compose push
@@ -49,6 +49,7 @@ jobs:
               -p 8000:8000 \
               --name zenova-api \
               --restart unless-stopped \
+              --add-host=host.docker.internal:host-gateway \
               -e NODE_ENV="production" \
               -e APP_NAME="Zenova" \
               -e HOST="localhost" \
@@ -56,10 +57,10 @@ jobs:
               -e DATABASE_URI="${{ secrets.DATABASE_URI }}" \
               -e JWT_ACCESS_TOKEN_SECRET_PRIVATE="${{ secrets.JWT_ACCESS_TOKEN_SECRET_PRIVATE }}" \
               -e JWT_ACCESS_TOKEN_SECRET_PUBLIC="${{ secrets.JWT_ACCESS_TOKEN_SECRET_PUBLIC }}" \
-              -e JWT_ACCESS_TOKEN_EXPIRATION_MINUTES=15 \
+              -e JWT_ACCESS_TOKEN_EXPIRATION_DAYS=1 \
               -e REFRESH_TOKEN_EXPIRATION_DAYS=750 \
               -e VERIFY_EMAIL_TOKEN_EXPIRATION_MINUTES=1440 \
-              -e RESET_PASSWORD_TOKEN_EXPIRATION_DAYS=7 \
+              -e RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES=10080 \
               -e SMTP_USERNAME="${{ secrets.SMTP_USERNAME }}" \
               -e SMTP_PASSWORD="${{ secrets.SMTP_PASSWORD }}" \
               -e SMTP_HOST="smtp.gmail.com" \
