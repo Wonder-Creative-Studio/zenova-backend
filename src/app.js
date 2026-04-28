@@ -32,6 +32,7 @@ const ALLOWED_ORIGINS = [
 	'http://localhost:3000',
 	'http://localhost:5174',
 	config.FRONTEND_URL,
+	config.ADMIN_URL,
 ].filter(Boolean);
 
 app.use(cors({

@@ -87,5 +87,7 @@ jobs:
               -e VECTOR_DB_URL="${{ secrets.VECTOR_DB_URL }}" \
               -e VECTOR_DB_API_KEY="${{ secrets.VECTOR_DB_API_KEY }}" \
               -e VECTOR_DB_PROVIDER="${{ secrets.VECTOR_DB_PROVIDER }}" \
+              -e ADMIN_URL="${{ secrets.ADMIN_URL }}" \
+              -e FRONTEND_URL="${{ secrets.FRONTEND_URL }}" \
               moinaknaskar/zenova:latest
           EOF

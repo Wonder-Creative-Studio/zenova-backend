@@ -27,6 +27,7 @@ const envValidate = Joi.object()
 		EMAIL_FROM: Joi.string().allow('').empty(''),
 
 		FRONTEND_URL: Joi.string().allow('').empty('').default('http://localhost:777'),
+		ADMIN_URL: Joi.string().allow('').empty(''),
 		IMAGE_URL: Joi.string().allow('').empty('').default('http://localhost:666/images'),
 
 		USDA_API_KEY: Joi.string().allow('').empty('')
@@ -59,8 +60,8 @@ export default {
 		w: 'majority'
 	},
 
-	JWT_ACCESS_TOKEN_SECRET_PRIVATE: env.JWT_ACCESS_TOKEN_SECRET_PRIVATE,
-	JWT_ACCESS_TOKEN_SECRET_PUBLIC: env.JWT_ACCESS_TOKEN_SECRET_PUBLIC,
+	JWT_ACCESS_TOKEN_SECRET_PRIVATE: Buffer.from(env.JWT_ACCESS_TOKEN_SECRET_PRIVATE, 'base64').toString('utf8'),
+	JWT_ACCESS_TOKEN_SECRET_PUBLIC: Buffer.from(env.JWT_ACCESS_TOKEN_SECRET_PUBLIC, 'base64').toString('utf8'),
 	JWT_ACCESS_TOKEN_EXPIRATION_DAYS: env.JWT_ACCESS_TOKEN_EXPIRATION_DAYS,
 
 	REFRESH_TOKEN_EXPIRATION_DAYS: env.REFRESH_TOKEN_EXPIRATION_DAYS,
@@ -74,6 +75,7 @@ export default {
 	EMAIL_FROM: env.EMAIL_FROM,
 
 	FRONTEND_URL: env.FRONTEND_URL,
+	ADMIN_URL: env.ADMIN_URL,
 
 	IMAGE_URL: env.IMAGE_URL,
 
