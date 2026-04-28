@@ -28,7 +28,7 @@ const chatMessageSchema = new mongoose.Schema(
     },
     agent: { // Kept your admin agent field
       type: String,
-      enum: ['calia', 'noura', 'aeron'],
+      enum: ['calia', 'noura', 'aeron', null],
       default: null,
     },
     model: {

@@ -60,7 +60,7 @@ const buildMessagesPayload = async ({ thread, userMessage }) => {
 	return { messages, user, profile };
 };
 
-const persistMessages = async ({ thread, userMessage, assistantMessage, clientMsgId, safetyFlags = [], model, usage = {} }) => {
+const persistMessages = async ({ thread, userMessage, assistantMessage, clientMsgId, safetyFlags = [], model, usage = {}, agent }) => {
 	const userDoc = await ChatMessage.create({
 		threadId: thread._id,
 		userId: thread.userId,
@@ -74,6 +74,7 @@ const persistMessages = async ({ thread, userMessage, assistantMessage, clientMs
 		userId: thread.userId,
 		role: 'assistant',
 		content: assistantMessage,
+		agent: agent || null,
 		model,
 		tokensIn: usage?.prompt_tokens || 0,
 		tokensOut: usage?.completion_tokens || 0,
@@ -144,6 +145,7 @@ export const streamMessage = async ({ userId, agent, threadId, message, clientMs
 			clientMsgId,
 			safetyFlags: [screen.category],
 			model: 'safety_template',
+			agent,
 		});
 		await safetyService.logSafetyEvent({
 			userId,
@@ -190,6 +192,7 @@ export const streamMessage = async ({ userId, agent, threadId, message, clientMs
 		assistantMessage: full,
 		clientMsgId,
 		model,
+		agent,
 	});
 
 	writeEvent(res, 'done', {
@@ -242,6 +245,7 @@ export const sendMessage = async ({ userId, agent, threadId, message, clientMsgI
 			clientMsgId,
 			safetyFlags: [screen.category],
 			model: 'safety_template',
+			agent,
 		});
 		await safetyService.logSafetyEvent({
 			userId,
@@ -275,6 +279,7 @@ export const sendMessage = async ({ userId, agent, threadId, message, clientMsgI
 		clientMsgId,
 		model,
 		usage,
+		agent,
 	});
 
 	memoryService.maybeCompressThread(thread._id).catch(() => {});
