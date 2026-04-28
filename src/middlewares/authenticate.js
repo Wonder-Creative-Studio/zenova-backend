@@ -47,6 +47,16 @@ const verifyCallback = (req, resolve, reject) => async (err, user, info) => {
     });
   }
 
+  // ✅ Check if the user is banned by admin
+  if (user.isBanned) {
+    return resolve({
+      success: false,
+      data: {},
+      message: `Your account has been banned. Reason: ${user.bannedReason || 'Violating terms'}`,
+      status: httpStatus.FORBIDDEN,
+    });
+  }
+
   // Attach user info to request
   req.user = user;
 

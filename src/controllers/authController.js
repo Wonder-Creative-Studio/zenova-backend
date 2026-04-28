@@ -135,7 +135,7 @@ export const signin = async (req, res) => {
 
     user = await User.findByIdAndUpdate(
       user._id,
-      { $set: { fcmTokens: mergedTokens } },
+      { $set: { fcmTokens: mergedTokens, lastActiveAt: new Date() } },
       { new: true }
     ).populate('roles', 'name');
 
@@ -411,7 +411,7 @@ export const googleSignIn = async (req, res) => {
 
     user = await User.findByIdAndUpdate(
       user._id,
-      { $set: { fcmTokens: mergedTokens } },
+      { $set: { fcmTokens: mergedTokens, lastActiveAt: new Date() } },
       { new: true }
     );
 
@@ -452,7 +452,7 @@ export const appleSignIn = async (req, res) => {
 
     user = await User.findByIdAndUpdate(
       user._id,
-      { $set: { fcmTokens: mergedTokens } },
+      { $set: { fcmTokens: mergedTokens, lastActiveAt: new Date() } },
       { new: true }
     );
 

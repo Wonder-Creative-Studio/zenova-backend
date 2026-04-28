@@ -9,6 +9,8 @@ import SleepLog from '~/models/sleepLogModel';
 import voiceService from '~/services/voiceService';
 
 import chatAiService from '~/services/chatAiService';
+import ChatThread from '~/models/chatThreadModel';
+import ChatMessage from '~/models/chatMessageModel';
 
 export const sendMessage = async (req, res) => {
   try {
@@ -55,21 +57,23 @@ export const sendMessage = async (req, res) => {
     };
     user.chats.push(userMessage); 
 
-        if (user.chats.filter(chat => chat.bot === bot).length === 0) {
-  // First message to this bot → send greeting
-    const greeting = bot === 'calia' 
-        ? "Hi 👋, I’m Calia, your AI Lifestyle Coach! How can I help you today?" 
-        : bot === 'noura'
-        ? "Hi 👋, I’m Noura, your AI Nutritionist! What would you like to eat today?"
-        : "Hi 👋, I’m Aeron, your AI Personal Trainer! Ready to crush your workout?";
+    let greetingSent = null;
+    if (user.chats.filter(chat => chat.bot === bot).length === 1) {
+      // First message to this bot → send greeting
+      const greeting = bot === 'calia' 
+          ? "Hi 👋, I’m Calia, your AI Lifestyle Coach! How can I help you today?" 
+          : bot === 'noura'
+          ? "Hi 👋, I’m Noura, your AI Nutritionist! What would you like to eat today?"
+          : "Hi 👋, I’m Aeron, your AI Personal Trainer! Ready to crush your workout?";
 
-    // Add greeting to chat history
-    user.chats.push({
-        role: 'assistant',
-        content: greeting,
-        bot,
-        timestamp: new Date(),
-    });
+      greetingSent = greeting;
+      // Add greeting to chat history
+      user.chats.push({
+          role: 'assistant',
+          content: greeting,
+          bot,
+          timestamp: new Date(),
+      });
     }
 
     // Add AI response to chat history
@@ -86,6 +90,52 @@ export const sendMessage = async (req, res) => {
 
     user.lastActiveAt = new Date();
     await user.save();
+
+    // Admin sync
+    try {
+      let thread = await ChatThread.findOne({ userId, agent: bot });
+      if (!thread) {
+        thread = await ChatThread.create({
+          userId,
+          agent: bot,
+          title: `Chat with ${bot.charAt(0).toUpperCase() + bot.slice(1)}`,
+          messageCount: 0,
+        });
+      }
+      
+      const messagesToInsert = [];
+      if (greetingSent) {
+         messagesToInsert.push({
+           threadId: thread._id,
+           userId,
+           role: 'assistant',
+           content: greetingSent,
+           agent: bot
+         });
+      }
+      messagesToInsert.push({
+        threadId: thread._id,
+        userId,
+        role: 'user',
+        content: message,
+        agent: bot
+      });
+      messagesToInsert.push({
+        threadId: thread._id,
+        userId,
+        role: 'assistant',
+        content: aiResponse,
+        agent: bot
+      });
+
+      await ChatMessage.insertMany(messagesToInsert);
+      
+      thread.messageCount += messagesToInsert.length;
+      thread.lastMessageAt = new Date();
+      await thread.save();
+    } catch (adminSyncErr) {
+      console.error('Failed to sync chat to admin collections:', adminSyncErr);
+    }
 
     return res.json({
       success: true,
