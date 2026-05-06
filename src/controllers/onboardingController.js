@@ -2,6 +2,7 @@
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
+import { normalizeLocation } from '~/utils/location';
 
 export const saveProfile = async (req, res) => {
   try {
@@ -14,7 +15,8 @@ export const saveProfile = async (req, res) => {
       dietType, 
       lifestyle, 
       medicalCondition, 
-      location 
+      location,
+      locationName,
     } = req.body;
  
     // Get user ID from authenticated request
@@ -75,6 +77,10 @@ export const saveProfile = async (req, res) => {
       isOnboarded: true,
     };
 
+    if (locationName !== undefined) {
+      updateData.locationName = locationName;
+    }
+
     // Add NEW fields (only if provided)
     if (req.body.languages) updateData.languages = req.body.languages;
     if (req.body.syncAppleHealth !== undefined) updateData.syncAppleHealth = req.body.syncAppleHealth;
@@ -87,11 +93,9 @@ export const saveProfile = async (req, res) => {
     if (req.body.barriers) updateData.barriers = req.body.barriers;
 
     // Add location if provided
-    if (location && Array.isArray(location.coordinates) && location.coordinates.length === 2) {
-      updateData.location = {
-        type: 'Point',
-        coordinates: location.coordinates.map(coord => parseFloat(coord)),
-      };
+    const normalizedLocation = normalizeLocation(req.body);
+    if (normalizedLocation) {
+      updateData.location = normalizedLocation;
     }
 
     // Update user

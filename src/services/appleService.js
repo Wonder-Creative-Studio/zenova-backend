@@ -5,12 +5,17 @@ import User from '~/models/userModel';
 import tokenService from '~/services/tokenService';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
+import { nanoid } from 'nanoid';
 
 /**
  * Verify Apple identity token and extract user info
  */
 export const verifyAppleToken = async (identityToken) => {
   try {
+    if (!config.APPLE_CLIENT_ID) {
+      throw new APIError('Apple auth is not configured on the server', httpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     const { payload } = await appleSignin.verifyIdToken(identityToken, {
       audience: config.APPLE_CLIENT_ID, // your bundle ID
     });
@@ -53,18 +58,31 @@ export const findOrCreateAppleUser = async (appleInfo) => {
 
     user = new User({
       email,
-      fullName: 'Apple User', // Apple doesn’t provide name
+      fullName: appleInfo.fullName || 'Apple User',
       userName: `apple_${appleInfo.appleId.substring(0, 8)}`,
-      password: 'apple_oauth_user', // dummy
+      password: `apple_oauth_${nanoid(24)}`,
       appleId: appleInfo.appleId,
       confirmed: true,
       isVerified: true,
     });
     await user.save();
-  } else if (appleInfo.email && !user.email.includes('privaterelay')) {
-    // Update email if it was previously hidden
-    user.email = appleInfo.email;
-    await user.save();
+  } else {
+    let shouldSave = false;
+    if (!user.appleId) {
+      user.appleId = appleInfo.appleId;
+      shouldSave = true;
+    }
+    if (appleInfo.email && (!user.email || user.email.includes('privaterelay'))) {
+      user.email = appleInfo.email;
+      shouldSave = true;
+    }
+    if (appleInfo.fullName && (!user.fullName || user.fullName === 'Apple User')) {
+      user.fullName = appleInfo.fullName;
+      shouldSave = true;
+    }
+    if (shouldSave) {
+      await user.save();
+    }
   }
 
   return user;
@@ -73,9 +91,13 @@ export const findOrCreateAppleUser = async (appleInfo) => {
 /**
  * Full Apple sign-in flow
  */
-export const appleSignIn = async (identityToken) => {
+export const appleSignIn = async (identityToken, profile = {}) => {
   const appleInfo = await verifyAppleToken(identityToken);
-  const user = await findOrCreateAppleUser(appleInfo);
+  const user = await findOrCreateAppleUser({
+    ...appleInfo,
+    email: appleInfo.email || profile.email,
+    fullName: profile.fullName,
+  });
   const tokens = await tokenService.generateAuthTokens(user);
   return { user, tokens };
 };

@@ -5,6 +5,7 @@ import User from '~/models/userModel';
 import tokenService from '~/services/tokenService';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
+import { nanoid } from 'nanoid';
 
 const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
 
@@ -13,9 +14,19 @@ const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
  */
 export const verifyGoogleToken = async (idToken) => {
   try {
+    if (!config.GOOGLE_CLIENT_ID) {
+      throw new APIError('Google auth is not configured on the server', httpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const audiences = [
+      config.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_ID_ANDROID,
+      process.env.GOOGLE_CLIENT_ID_IOS,
+    ].filter(Boolean);
+
     const ticket = await client.verifyIdToken({
       idToken,
-      audience: config.GOOGLE_CLIENT_ID,
+      audience: audiences,
     });
     const payload = ticket.getPayload();
     if (!payload) {
@@ -28,6 +39,7 @@ export const verifyGoogleToken = async (idToken) => {
       picture: payload.picture,
     };
   } catch (err) {
+    console.error('Google Auth Error Details:', err);
     throw new APIError('Google authentication failed', httpStatus.UNAUTHORIZED);
   }
 };
@@ -36,23 +48,37 @@ export const verifyGoogleToken = async (idToken) => {
  * Find or create user from Google info
  */
 export const findOrCreateGoogleUser = async (googleInfo) => {
-  let user = await User.findOne({ email: googleInfo.email });
+  let user = await User.findOne({ googleId: googleInfo.googleId });
+  if (!user && googleInfo.email) {
+    user = await User.findOne({ email: googleInfo.email.toLowerCase() });
+  }
+
   if (!user) {
-    // Create new user
     user = new User({
-      email: googleInfo.email,
+      email: googleInfo.email?.toLowerCase(),
       fullName: googleInfo.name,
       userName: `google_${googleInfo.googleId.substring(0, 8)}`,
-      password: 'google_oauth_user', // dummy (not used)
+      password: `google_oauth_${nanoid(24)}`,
       googleId: googleInfo.googleId,
       confirmed: true,
       isVerified: true,
     });
     await user.save();
   } else {
-    // Update Google ID if missing
+    let shouldSave = false;
     if (!user.googleId) {
       user.googleId = googleInfo.googleId;
+      shouldSave = true;
+    }
+    if (!user.email && googleInfo.email) {
+      user.email = googleInfo.email.toLowerCase();
+      shouldSave = true;
+    }
+    if (googleInfo.name && !user.fullName) {
+      user.fullName = googleInfo.name;
+      shouldSave = true;
+    }
+    if (shouldSave) {
       await user.save();
     }
   }

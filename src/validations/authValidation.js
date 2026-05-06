@@ -32,7 +32,16 @@ export const signin = {
     email: Joi.string().email().optional(),
     phone: Joi.string().optional(),
     password: Joi.string().required(),
-    fcmTokens: Joi.any().optional()
+    fcmTokens: Joi.any().optional(),
+    latitude: Joi.number().optional(),
+    longitude: Joi.number().optional(),
+    lat: Joi.number().optional(),
+    lng: Joi.number().optional(),
+    long: Joi.number().optional(),
+    location: Joi.object({
+      type: Joi.string().valid('Point').default('Point'),
+      coordinates: Joi.array().items(Joi.number()).length(2).optional(),
+    }).optional(),
   })
     .custom((value, helpers) => {
       if (!value.userName && !value.email && !value.phone) {
@@ -92,20 +101,49 @@ export const updateMe = {
       .optional(),
     medicalCondition: Joi.string().max(200).allow('').optional(),
     locationName: Joi.string().max(200).allow('').optional(),
+    latitude: Joi.number().optional(),
+    longitude: Joi.number().optional(),
+    lat: Joi.number().optional(),
+    lng: Joi.number().optional(),
+    long: Joi.number().optional(),
+    location: Joi.object({
+      type: Joi.string().valid('Point').default('Point'),
+      coordinates: Joi.array().items(Joi.number()).length(2).optional(),
+    }).optional(),
   })
 };
 
 export const googleSignIn = {
   body: Joi.object().keys({
     idToken: Joi.string().required(),
-    fcmTokens: Joi.any().optional()
+    fcmTokens: Joi.any().optional(),
+    latitude: Joi.number().optional(),
+    longitude: Joi.number().optional(),
+    lat: Joi.number().optional(),
+    lng: Joi.number().optional(),
+    long: Joi.number().optional(),
+    location: Joi.object({
+      type: Joi.string().valid('Point').default('Point'),
+      coordinates: Joi.array().items(Joi.number()).length(2).optional(),
+    }).optional(),
   }),
 };
 
 export const appleSignIn = {
   body: Joi.object().keys({
     identityToken: Joi.string().required(),
-    fcmTokens: Joi.any().optional()
+    email: Joi.string().email().optional(),
+    fullName: Joi.string().trim().min(2).max(100).optional(),
+    fcmTokens: Joi.any().optional(),
+    latitude: Joi.number().optional(),
+    longitude: Joi.number().optional(),
+    lat: Joi.number().optional(),
+    lng: Joi.number().optional(),
+    long: Joi.number().optional(),
+    location: Joi.object({
+      type: Joi.string().valid('Point').default('Point'),
+      coordinates: Joi.array().items(Joi.number()).length(2).optional(),
+    }).optional(),
   }),
 };
 

@@ -4,6 +4,7 @@ import { generateAndStoreOtp } from '../utils/otp.js';
 import { sendOtpEmail } from '~/services/emailService/index.js';
 import tokenService from '~/services/tokenService';
 import { nanoid } from 'nanoid';
+import { normalizeLocation } from '~/utils/location';
 
 // Helper for consistent success response
 const successResponse = (res, message, data = {}) => {
@@ -115,7 +116,7 @@ export const sendOtp = async (req, res, next) => {
 
 export const verifyOtp = async (req, res, next) => {
   try {
-    let { email, phone, otp, type, fcmTokens } = req.body;
+    let { email, phone, otp, type, fcmTokens, location } = req.body;
 
     // Default OTP type (same as sendOtp)
     type = type || 'LOGIN';
@@ -161,16 +162,17 @@ export const verifyOtp = async (req, res, next) => {
     const existing = user.fcmTokens || [];
     const mergedTokens = [...new Set([...existing, ...incoming])];
 
-    user = await User.findByIdAndUpdate(
-      user._id,
-      {
-        $set: {
-          fcmTokens: mergedTokens,
-          isVerified: true,
-        },
-      },
-      { new: true }
-    );
+    const update = {
+      fcmTokens: mergedTokens,
+      isVerified: true,
+      lastActiveAt: new Date(),
+    };
+    const normalizedLocation = normalizeLocation(location);
+    if (normalizedLocation) {
+      update.location = normalizedLocation;
+    }
+
+    user = await User.findByIdAndUpdate(user._id, { $set: update }, { new: true });
 
     // Generate JWT tokens
     const tokens = await tokenService.generateAuthTokens(user);

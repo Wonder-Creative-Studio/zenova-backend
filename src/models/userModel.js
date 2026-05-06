@@ -27,6 +27,16 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true, // optional phone
     },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    appleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
     password: {
       type: String,
       required: true,
@@ -66,7 +76,7 @@ const userSchema = new mongoose.Schema(
         enum: ['Point'],
         default: 'Point',
       },
-      coordinates: [Number], // [longitude, latitude]
+      coordinates: [Number],
     },
     dob: {
       type: Date, // date of birth
@@ -188,8 +198,8 @@ const userSchema = new mongoose.Schema(
       default: [],
     },
     // Admin — ban/suspension fields (Admin Panel Phase 1)
-    isBanned:     { type: Boolean, default: false, index: true },
-    bannedAt:     { type: Date,   default: null },
+    isBanned: { type: Boolean, default: false, index: true },
+    bannedAt: { type: Date, default: null },
     bannedReason: { type: String, default: null },
   },
   {
@@ -202,6 +212,8 @@ const userSchema = new mongoose.Schema(
     },
   }
 );
+
+userSchema.index({ location: '2dsphere' });
 
 // Virtual field for avatar URL
 userSchema.virtual('avatarUrl').get(function () {
@@ -276,6 +288,10 @@ userSchema.statics.updateUserById = async function (userId, body) {
   }
 
   Object.assign(user, body);
+  if (body.location) {
+    user.location = body.location;
+    user.markModified('location');
+  }
   return user.save();
 };
 

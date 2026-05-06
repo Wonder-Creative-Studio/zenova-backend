@@ -8,6 +8,26 @@ import Token from '~/models/tokenModel';
 import Role from '~/models/roleModel';
 import googleService from '~/services/googleService';
 import appleService from '~/services/appleService';
+import { normalizeLocation } from '~/utils/location';
+
+const mergeUserContextUpdate = (user, body) => {
+  const { fcmTokens } = body;
+  const incoming = fcmTokens
+    ? (Array.isArray(fcmTokens) ? fcmTokens : [fcmTokens])
+    : [];
+  const existing = user.fcmTokens || [];
+  const update = {
+    fcmTokens: [...new Set([...existing, ...incoming])],
+    lastActiveAt: new Date(),
+  };
+
+  const normalizedLocation = normalizeLocation(body);
+  if (normalizedLocation) {
+    update.location = normalizedLocation;
+  }
+
+  return update;
+};
 
 export const signup = async (req, res) => {
   try {
@@ -90,19 +110,21 @@ export const signup = async (req, res) => {
 
 export const signin = async (req, res) => {
   try {
-    const { email, phone, password, fcmTokens } = req.body;
+    const { userName, email, phone, password, fcmTokens, location } = req.body;
 
-    if ((!email && !phone) || !password) {
+    if ((!email && !phone && !userName) || !password) {
       return res.status(400).json({
         success: false,
         data: {},
-        message: 'Email or phone and password are required',
+        message: 'Username, email, or phone and password are required',
       });
     }
 
-    // find user by email or phone
+    // find user by username, email, or phone
     let user;
-    if (email) {
+    if (userName) {
+      user = await User.findOne({ userName }).populate('roles', 'name');
+    } else if (email) {
       user = await User.findOne({ email }).populate('roles', 'name');
     } else if (phone) {
       user = await User.findOne({ phone }).populate('roles', 'name');
@@ -112,7 +134,7 @@ export const signin = async (req, res) => {
       return res.status(400).json({
         success: false,
         data: {},
-        message: 'Incorrect email/phone or password',
+        message: 'Incorrect username/email/phone or password',
       });
     }
 
@@ -122,20 +144,14 @@ export const signin = async (req, res) => {
       return res.status(400).json({
         success: false,
         data: {},
-        message: 'Incorrect email/phone or password',
+        message: 'Incorrect username/email/phone or password',
       });
     }
 
     // normalize: accept string or array, merge with existing tokens (deduplicated)
-    const incoming = fcmTokens
-      ? (Array.isArray(fcmTokens) ? fcmTokens : [fcmTokens])
-      : [];
-    const existing = user.fcmTokens || [];
-    const mergedTokens = [...new Set([...existing, ...incoming])];
-
     user = await User.findByIdAndUpdate(
       user._id,
-      { $set: { fcmTokens: mergedTokens, lastActiveAt: new Date() } },
+      { $set: mergeUserContextUpdate(user, req.body) },
       { new: true }
     ).populate('roles', 'name');
 
@@ -218,6 +234,10 @@ export const getMe = async (req, res) => {
 };
 
 export const updateMe = async (req, res) => {
+  const normalizedLocation = normalizeLocation(req.body);
+  if (normalizedLocation) {
+    req.body.location = normalizedLocation;
+  }
   const user = await User.updateUserById(req.user.id, req.body);
   return res.json({
     success: true,
@@ -391,7 +411,7 @@ export const resetPassword = async (req, res) => {
 
 export const googleSignIn = async (req, res) => {
   try {
-    const { idToken, fcmTokens } = req.body;
+    const { idToken, fcmTokens, location } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
@@ -403,21 +423,19 @@ export const googleSignIn = async (req, res) => {
 
     let { user, tokens } = await googleService.googleSignIn(idToken);
 
-    const incoming = fcmTokens
-      ? (Array.isArray(fcmTokens) ? fcmTokens : [fcmTokens])
-      : [];
-    const existing = user.fcmTokens || [];
-    const mergedTokens = [...new Set([...existing, ...incoming])];
-
     user = await User.findByIdAndUpdate(
       user._id,
-      { $set: { fcmTokens: mergedTokens, lastActiveAt: new Date() } },
+      { $set: mergeUserContextUpdate(user, req.body) },
       { new: true }
     );
 
     return res.json({
       success: true,
-      data: { user, tokens },
+      data: {
+        user,
+        tokens,
+        isNewUser: !user.isOnboarded,
+      },
       message: 'Google login successful',
     });
   } catch (err) {
@@ -432,7 +450,7 @@ export const googleSignIn = async (req, res) => {
 
 export const appleSignIn = async (req, res) => {
   try {
-    const { identityToken, fcmTokens } = req.body;
+    const { identityToken, fcmTokens, location, email, fullName } = req.body;
 
     if (!identityToken) {
       return res.status(400).json({
@@ -442,23 +460,21 @@ export const appleSignIn = async (req, res) => {
       });
     }
 
-    let { user, tokens } = await appleService.appleSignIn(identityToken);
-
-    const incoming = fcmTokens
-      ? (Array.isArray(fcmTokens) ? fcmTokens : [fcmTokens])
-      : [];
-    const existing = user.fcmTokens || [];
-    const mergedTokens = [...new Set([...existing, ...incoming])];
+    let { user, tokens } = await appleService.appleSignIn(identityToken, { email, fullName });
 
     user = await User.findByIdAndUpdate(
       user._id,
-      { $set: { fcmTokens: mergedTokens, lastActiveAt: new Date() } },
+      { $set: mergeUserContextUpdate(user, req.body) },
       { new: true }
     );
 
     return res.json({
       success: true,
-      data: { user, tokens },
+      data: {
+        user,
+        tokens,
+        isNewUser: !user.isOnboarded,
+      },
       message: 'Apple login successful',
     });
   } catch (err) {

@@ -30,7 +30,9 @@ const envValidate = Joi.object()
 		ADMIN_URL: Joi.string().allow('').empty(''),
 		IMAGE_URL: Joi.string().allow('').empty('').default('http://localhost:666/images'),
 
-		USDA_API_KEY: Joi.string().allow('').empty('')
+		USDA_API_KEY: Joi.string().allow('').empty(''),
+		GOOGLE_CLIENT_ID: Joi.string().allow('').empty(''),
+		APPLE_CLIENT_ID: Joi.string().allow('').empty('')
 	})
 	.unknown();
 
@@ -80,6 +82,8 @@ export default {
 	IMAGE_URL: env.IMAGE_URL,
 
 	USDA_API_KEY: env.USDA_API_KEY,
+	GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID?.trim(),
+	APPLE_CLIENT_ID: env.APPLE_CLIENT_ID?.trim(),
 
 	TOKEN_TYPES: {
 		REFRESH: 'refresh',

@@ -11,6 +11,12 @@ export const saveProfile = {
     dietType: Joi.string().valid('non-veg', 'veg', 'vegan').required(),
     lifestyle: Joi.string().valid('very_active', 'active', 'sedentary').required(),
     medicalCondition: Joi.string().optional(),
+    locationName: Joi.string().max(200).allow('').optional(),
+    latitude: Joi.number().optional(),
+    longitude: Joi.number().optional(),
+    lat: Joi.number().optional(),
+    lng: Joi.number().optional(),
+    long: Joi.number().optional(),
     location: Joi.object({
       type: Joi.string().valid('Point').default('Point'),
       coordinates: Joi.array().items(Joi.number()).length(2).optional(),
