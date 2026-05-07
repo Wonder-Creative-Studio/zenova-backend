@@ -19,7 +19,7 @@ const userProfileSchema = new mongoose.Schema(
     },
     activityLevel: {
       type: String,
-      default: null, // e.g. 'sedentary', 'active', 'very_active'
+      default: null, // e.g. 'not_very_active', 'lightly_active', 'moderately_active', 'very_active'
     },
     dietaryTags: {
       type: [String],

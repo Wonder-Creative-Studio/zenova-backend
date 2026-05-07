@@ -56,12 +56,12 @@ export const saveProfile = async (req, res) => {
     }
 
     // Validate lifestyle
-    const allowedLifestyles = ['sedentary', 'lightly_active', 'moderately_active', 'very_active'];
+    const allowedLifestyles = ['not_very_active', 'lightly_active', 'moderately_active', 'very_active'];
     if (!allowedLifestyles.includes(lifestyle)) {
       return res.status(400).json({
         success: false,
         data: {},
-        message: 'Lifestyle must be one of: sedentary, lightly_active, moderately_active, very_active',
+        message: 'Lifestyle must be one of: not_very_active, lightly_active, moderately_active, very_active',
       });
     }
 
@@ -131,92 +131,6 @@ export const saveProfile = async (req, res) => {
 
 export default {
   saveProfile,
-}; 
-
-
-
-
-
-
-// import User from '~/models/userModel';
-// import httpStatus from 'http-status';
-// import APIError from '~/utils/apiError';
-
-// export const saveProfile = async (req, res) => {
-//   try {
-//     const {
-//       userId, 
-//       name, 
-//       dob, 
-//       height, 
-//       weight, 
-//       gender, 
-//       dietType, 
-//       lifestyle, 
-//       medicalCondition, 
-//       location,
-//       email,        // ← NEW
-//       phone         // ← NEW
-//     } = req.body;
- 
-//      if (!userId) {
-//       return res.status(400).json({
-//         success: false,
-//         data: {},
-//         message: 'User ID is required',
-//       });
-//     }
-
-//     // Validate required fields (existing + new rule for email/phone)
-//     const requiredFields = ['name', 'dob', 'height', 'weight', 'gender', 'dietType', 'lifestyle'];
-//     for (const field of requiredFields) {
-//       if (req.body[field] === undefined || req.body[field] === null || req.body[field] === '') {
-//         return res.status(400).json({
-//           success: false,
-//           data: {},
-//           message: `${field} is required`,
-//         });
-//       }
-//     }
-
-//     // ✅ NEW: At least one of email or phone must be provided
-//     if (!email && !phone) {
-//       return res.status(400).json({
-//         success: false,
-//         data: {},
-//         message: 'Either email or phone is required',
-//       });
-//     }
-
-//     // Validate gender
-//     const allowedGenders = ['male', 'female', 'other'];
-//     if (!allowedGenders.includes(gender)) {
-//       return res.status(400).json({
-//         success: false,
-//         data: {},
-//         message: 'Gender must be male, female, or other',
-//       });
-//     }
-
-//     // Validate dietType
-//     const allowedDietTypes = ['non-veg', 'veg', 'vegan'];
-//     if (!allowedDietTypes.includes(dietType)) {
-//       return res.status(400).json({
-//         success: false,
-//         data: {},
-//         message: 'Diet type must be non-veg, veg, or vegan',
-//       });
-//     }
-
-//     // Validate lifestyle
-//     const allowedLifestyles = ['very_active', 'active', 'sedentary'];
-//     if (!allowedLifestyles.includes(lifestyle)) {
-//       return res.status(400).json({
-//         success: false,
-//         data: {},
-//         message: 'Lifestyle must be very_active, active, or sedentary',
-//       });
-//     }
 
 //     // ✅ NEW: Check for email/phone uniqueness (if provided)
 //     if (email) {

@@ -97,7 +97,7 @@ export const updateMe = {
     weight: Joi.number().min(10).max(500).optional(),       // kg
     gender: Joi.string().valid('male', 'female', 'other').optional(),
     lifestyle: Joi.string()
-      .valid('sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active')
+      .valid('not_very_active', 'lightly_active', 'moderately_active', 'very_active')
       .optional(),
     medicalCondition: Joi.alternatives().try(Joi.string(), Joi.array().items(Joi.string())).optional(),
     dietType: Joi.string().valid('non-veg', 'veg', 'vegan', 'vegetarian', 'balanced', 'eggetarian', 'custom', 'Vegetarian', 'Balanced', 'Eggetarian', 'Custom').optional(),

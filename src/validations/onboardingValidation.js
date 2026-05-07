@@ -9,7 +9,7 @@ export const saveProfile = {
     weight: Joi.number().min(20).max(300).required(), // kg
     gender: Joi.string().valid('male', 'female', 'other').required(),
     dietType: Joi.string().valid('non-veg', 'veg', 'vegan', 'vegetarian', 'balanced', 'eggetarian', 'custom', 'Vegetarian', 'Balanced', 'Eggetarian', 'Custom').required(),
-    lifestyle: Joi.string().valid('sedentary', 'lightly_active', 'moderately_active', 'very_active').required(),
+    lifestyle: Joi.string().valid('not_very_active', 'lightly_active', 'moderately_active', 'very_active').required(),
     medicalCondition: Joi.alternatives().try(Joi.string(), Joi.array().items(Joi.string())).optional(), // Supports multiple options via array
     selectedAI: Joi.string().optional(),
     locationName: Joi.string().max(200).allow('').optional(),

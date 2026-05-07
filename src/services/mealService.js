@@ -185,7 +185,9 @@ export async function getNutritionSummary({ userId, startDate, endDate }) {
 function calculateTargetCalories(user) {
   let base = 2000;
   if (user.lifestyle === 'very_active') base = 2500;
-  else if (user.lifestyle === 'sedentary') base = 1800;
+  else if (user.lifestyle === 'moderately_active') base = 2200;
+  else if (user.lifestyle === 'lightly_active') base = 2000;
+  else if (user.lifestyle === 'not_very_active') base = 1800;
   if (user.wellnessGoal === 'weight_loss') return base - 300;
   if (user.wellnessGoal === 'muscle_gain') return base + 300;
   return base;

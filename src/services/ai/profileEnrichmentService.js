@@ -8,7 +8,7 @@ import logger from '~/config/logger';
 const EXTRACT_PROMPT = `You are a silent wellness profile extractor.
 Given a user's chat message, extract any of the following facts ONLY if explicitly and clearly stated:
 - primaryGoal (string, e.g. "lose weight", "build muscle", "reduce stress")
-- activityLevel (one of: sedentary, light, moderate, active, very_active)
+- activityLevel (one of: not_very_active, lightly_active, moderately_active, very_active)
 - dietaryTags (array of strings, e.g. ["vegetarian", "gluten-free"])
 - allergies (string, e.g. "lactose intolerant, peanut allergy")
 - firstHabit (string, e.g. "morning walk")
