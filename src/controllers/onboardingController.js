@@ -131,6 +131,7 @@ export const saveProfile = async (req, res) => {
 
 export default {
   saveProfile,
+};
 
 //     // ✅ NEW: Check for email/phone uniqueness (if provided)
 //     if (email) {
