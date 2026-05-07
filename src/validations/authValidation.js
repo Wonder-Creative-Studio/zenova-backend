@@ -99,7 +99,9 @@ export const updateMe = {
     lifestyle: Joi.string()
       .valid('sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active')
       .optional(),
-    medicalCondition: Joi.string().max(200).allow('').optional(),
+    medicalCondition: Joi.alternatives().try(Joi.string(), Joi.array().items(Joi.string())).optional(),
+    dietType: Joi.string().valid('non-veg', 'veg', 'vegan', 'vegetarian', 'balanced', 'eggetarian', 'custom', 'Vegetarian', 'Balanced', 'Eggetarian', 'Custom').optional(),
+    selectedAI: Joi.string().optional(),
     locationName: Joi.string().max(200).allow('').optional(),
     latitude: Joi.number().optional(),
     longitude: Joi.number().optional(),

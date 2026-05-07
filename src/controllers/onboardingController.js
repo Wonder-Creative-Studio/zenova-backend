@@ -17,6 +17,7 @@ export const saveProfile = async (req, res) => {
       medicalCondition, 
       location,
       locationName,
+      selectedAI,
     } = req.body;
  
     // Get user ID from authenticated request
@@ -45,12 +46,12 @@ export const saveProfile = async (req, res) => {
     }
 
     // Validate dietType
-    const allowedDietTypes = ['non-veg', 'veg', 'vegan'];
+    const allowedDietTypes = ['non-veg', 'veg', 'vegan', 'vegetarian', 'balanced', 'eggetarian', 'custom', 'Vegetarian', 'Balanced', 'Eggetarian', 'Custom'];
     if (!allowedDietTypes.includes(dietType)) {
       return res.status(400).json({
         success: false,
         data: {},
-        message: 'Diet type must be non-veg, veg, or vegan',
+        message: 'Diet type must be one of the allowed options',
       });
     }
 
@@ -91,6 +92,7 @@ export const saveProfile = async (req, res) => {
     if (req.body.currentMood) updateData.currentMood = req.body.currentMood;
     if (req.body.lifestyleState) updateData.lifestyleState = req.body.lifestyleState;
     if (req.body.barriers) updateData.barriers = req.body.barriers;
+    if (selectedAI) updateData.selectedAI = selectedAI;
 
     // Add location if provided
     const normalizedLocation = normalizeLocation(req.body);

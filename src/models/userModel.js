@@ -61,13 +61,16 @@ const userSchema = new mongoose.Schema(
       type: String, // 'male', 'female', 'other'
     },
     dietType: {
-      type: String, // 'non-veg', 'veg', 'vegan'
+      type: String, // 'non-veg', 'veg', 'vegan', 'vegetarian', 'balanced', 'eggetarian', 'custom'
     },
     lifestyle: {
       type: String, // 'very_active', 'active', 'sedentary'
     },
     medicalCondition: {
-      type: String, // 'stress', 'none', 'diabetes', etc.
+      type: [String], 
+    },
+    selectedAI: {
+      type: String, // 'calia', 'noura', 'aeron'
     },
     isOnboarded: { type: Boolean, default: false },
     location: {

@@ -8,9 +8,10 @@ export const saveProfile = {
     height: Joi.number().min(50).max(300).required(), // cm
     weight: Joi.number().min(20).max(300).required(), // kg
     gender: Joi.string().valid('male', 'female', 'other').required(),
-    dietType: Joi.string().valid('non-veg', 'veg', 'vegan').required(),
+    dietType: Joi.string().valid('non-veg', 'veg', 'vegan', 'vegetarian', 'balanced', 'eggetarian', 'custom', 'Vegetarian', 'Balanced', 'Eggetarian', 'Custom').required(),
     lifestyle: Joi.string().valid('very_active', 'active', 'sedentary').required(),
-    medicalCondition: Joi.string().optional(),
+    medicalCondition: Joi.alternatives().try(Joi.string(), Joi.array().items(Joi.string())).optional(),
+    selectedAI: Joi.string().optional(),
     locationName: Joi.string().max(200).allow('').optional(),
     latitude: Joi.number().optional(),
     longitude: Joi.number().optional(),
