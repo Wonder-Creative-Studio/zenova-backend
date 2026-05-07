@@ -56,12 +56,12 @@ export const saveProfile = async (req, res) => {
     }
 
     // Validate lifestyle
-    const allowedLifestyles = ['very_active', 'active', 'sedentary'];
+    const allowedLifestyles = ['sedentary', 'lightly_active', 'moderately_active', 'very_active'];
     if (!allowedLifestyles.includes(lifestyle)) {
       return res.status(400).json({
         success: false,
         data: {},
-        message: 'Lifestyle must be very_active, active, or sedentary',
+        message: 'Lifestyle must be one of: sedentary, lightly_active, moderately_active, very_active',
       });
     }
 

@@ -64,7 +64,7 @@ const userSchema = new mongoose.Schema(
       type: String, // 'non-veg', 'veg', 'vegan', 'vegetarian', 'balanced', 'eggetarian', 'custom'
     },
     lifestyle: {
-      type: String, // 'very_active', 'active', 'sedentary'
+      type: String, // 'sedentary', 'lightly_active', 'moderately_active', 'very_active'
     },
     medicalCondition: {
       type: [String], 
