@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('users_admin_seed', userSchema, 'users');
 const Role = mongoose.model('roles_admin_seed', roleSchema, 'roles');
 
+
 const run = async () => {
   try {
     await mongoose.connect('mongodb+srv://joseph:admin@cluster0.xtpdu2w.mongodb.net/test?retryWrites=true&w=majority&appName=Cluster0');
