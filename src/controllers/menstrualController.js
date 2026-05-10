@@ -3,7 +3,7 @@ import MenstrualCycle from '~/models/menstrualCycleModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import questService from '~/services/questService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 
 export const logPeriod = async (req, res) => {
@@ -28,20 +28,20 @@ export const logPeriod = async (req, res) => {
 
     const savedLog = await periodLog.save();
 
-    // Award NovaCoins (20 coins per entry)
-    const novaCoinsEarned = 20; 
-
-    const user = await User.findById(userId);
-
-    // ✅ ADD QUEST CHECK (no streak)
-    await questService.checkQuestCompletion(userId, {
-      menstrualLogs: 1,
-      totalNovaCoins: user.novaCoins + novaCoinsEarned, // e.g., 20
+    // Process gamification via V2
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
+      type: 'menstrual',
+      logId: savedLog._id,
+      logModel: 'menstrualCycles',
+      data: { startDate, flow }
     });
 
     return res.json({
       success: true,
-       data:{ savedLog, novaCoinsEarned },
+      data: { 
+        savedLog, 
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult) 
+      },
       message: 'Period logged successfully',
     });
   } catch (err) {

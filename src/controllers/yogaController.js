@@ -3,7 +3,7 @@ import YogaLog from '~/models/yogaLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import gamificationService from '~/services/gamificationService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 export const logYoga = async (req, res) => {
   try {
@@ -28,7 +28,7 @@ export const logYoga = async (req, res) => {
     const savedLog = await yogaLog.save();
 
     // Process gamification
-    const gamificationResult = await gamificationService.processActivity(userId, {
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
       type: 'yoga',
       logId: savedLog._id,
       logModel: 'yogaLogs',
@@ -39,13 +39,7 @@ export const logYoga = async (req, res) => {
       success: true,
       data: {
         savedLog,
-        novaCoinsEarned: gamificationResult.coinsEarned,
-        bonusCoins: gamificationResult.bonusCoins,
-        totalCoins: gamificationResult.totalCoins,
-        streak: gamificationResult.streak,
-        level: gamificationResult.level,
-        questsCompleted: gamificationResult.questsCompleted,
-        badgesUnlocked: gamificationResult.badgesUnlocked
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Yoga session logged successfully',
     });

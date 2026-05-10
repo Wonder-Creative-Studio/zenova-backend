@@ -3,7 +3,7 @@ import MoodLog from '~/models/moodLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import gamificationService from '~/services/gamificationService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import NovaTransaction from '~/models/novaTransactionModel';
 
 // AI Suggestions Map (Rule-Based MVP)
@@ -86,8 +86,8 @@ export const logMood = async (req, res) => {
 
     const savedLog = await moodLog.save();
 
-    // Process gamification (coins, stats, quests, badges)
-    const gamificationResult = await gamificationService.processActivity(userId, {
+    // Process gamification
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
       type: 'mood',
       logId: savedLog._id,
       logModel: 'moodLogs',
@@ -99,14 +99,7 @@ export const logMood = async (req, res) => {
       data: {
         savedLog,
         suggestion,
-        novaCoinsEarned: gamificationResult.coinsEarned,
-        bonusCoins: gamificationResult.bonusCoins,
-        totalCoinsEarned: gamificationResult.totalCoinsEarned,
-        totalCoins: gamificationResult.totalCoins,
-        streak: gamificationResult.streak,
-        level: gamificationResult.level,
-        questsCompleted: gamificationResult.questsCompleted,
-        badgesUnlocked: gamificationResult.badgesUnlocked
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Mood logged successfully',
     });

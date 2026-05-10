@@ -3,7 +3,7 @@ import SleepLog from '~/models/sleepLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import gamificationService from '~/services/gamificationService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import SleepGoal from '~/models/sleepGoalModel';
 
 export const setSleepGoal = async (req, res) => {
@@ -73,24 +73,18 @@ export const logSleep = async (req, res) => {
     const savedLog = await sleepLog.save();
 
     // Process gamification
-    const gamificationResult = await gamificationService.processActivity(userId, {
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
       type: 'sleep',
       logId: savedLog._id,
       logModel: 'sleepLogs',
-      data: { durationMin }
+      data: { durationHr: durationMin / 60, quality }
     });
 
     return res.json({
       success: true,
       data: {
         savedLog,
-        novaCoinsEarned: gamificationResult.coinsEarned,
-        bonusCoins: gamificationResult.bonusCoins,
-        totalCoins: gamificationResult.totalCoins,
-        streak: gamificationResult.streak,
-        level: gamificationResult.level,
-        questsCompleted: gamificationResult.questsCompleted,
-        badgesUnlocked: gamificationResult.badgesUnlocked
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Sleep logged successfully',
     });

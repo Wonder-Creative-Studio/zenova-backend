@@ -5,7 +5,7 @@ import WorkoutLog from '~/models/workoutLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import gamificationService from '~/services/gamificationService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 // Helper: Calculate calories burned for an exercise
 const calculateExerciseCalories = (durationMin, estimatedBurnPerMin, weightKg = 70) => {
@@ -249,7 +249,7 @@ export const logWorkout = async (req, res) => {
     const savedLog = await workoutLog.save();
 
     // Process gamification
-    const gamificationResult = await gamificationService.processActivity(userId, {
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
       type: 'workout',
       logId: savedLog._id,
       logModel: 'workoutLogs',
@@ -263,13 +263,7 @@ export const logWorkout = async (req, res) => {
       success: true,
       data: {
         savedLog,
-        novaCoinsEarned: gamificationResult.coinsEarned,
-        bonusCoins: gamificationResult.bonusCoins,
-        totalCoins: gamificationResult.totalCoins,
-        streak: gamificationResult.streak,
-        level: gamificationResult.level,
-        questsCompleted: gamificationResult.questsCompleted,
-        badgesUnlocked: gamificationResult.badgesUnlocked
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Workout logged successfully',
     });

@@ -5,6 +5,7 @@ import ReadingReminder from '~/models/readingReminderModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 export const setReadingGoal = async (req, res) => {
   try {
@@ -79,14 +80,19 @@ export const logReadingTime = async (req, res) => {
       { new: true, upsert: true }
     );
 
-    // Award NovaCoins (1 coin per 10 minutes)
-    const novaCoinsEarned = Math.floor(totalMinutes / 10);
+    // Process gamification via V2
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
+      type: 'reading',
+      logId: log._id,
+      logModel: 'readingLogs',
+      data: { totalMinutes }
+    });
 
     return res.json({
       success: true,
       data: {
         log,
-        novaCoinsEarned,
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult),
       },
       message: 'Reading session logged successfully',
     });

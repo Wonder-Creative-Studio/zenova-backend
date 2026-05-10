@@ -117,7 +117,7 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
 export const getSummary = async (req, res) => {
     try {
         const userId = req.user.id;
-        const summary = await gamificationService.getSummary(userId);
+        const summary = await gamificationServiceV2.getSummary(userId);
 
         return res.json({
             success: true,
@@ -250,6 +250,64 @@ export const getQuests = async (req, res) => {
             success: false,
             data: {},
             message: err.message || 'Failed to fetch quests',
+        });
+    }
+};
+
+/**
+ * Start a daily quest (costs 50 NC)
+ * POST /api/gamification/quests/start
+ */
+export const startDailyQuests = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Deduct 50 NC
+        const transaction = await novaCoinsService.spendCoins(userId, {
+            amount: 50,
+            category: 'quest_start',
+            description: 'Started a daily quest'
+        });
+
+        return res.json({
+            success: true,
+            data: { transaction },
+            message: 'Daily quest started successfully'
+        });
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            data: {},
+            message: err.message || 'Failed to start daily quest'
+        });
+    }
+};
+
+/**
+ * Skip a daily quest (costs 200 NC)
+ * POST /api/gamification/quests/skip
+ */
+export const skipDailyQuests = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Deduct 200 NC
+        const transaction = await novaCoinsService.spendCoins(userId, {
+            amount: 200,
+            category: 'quest_skip',
+            description: 'Skipped a daily quest'
+        });
+
+        return res.json({
+            success: true,
+            data: { transaction },
+            message: 'Daily quest skipped successfully'
+        });
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            data: {},
+            message: err.message || 'Failed to skip daily quest'
         });
     }
 };
@@ -842,4 +900,6 @@ export default {
     getV2State,
     getStreaks,
     pauseStreak,
+    startDailyQuests,
+    skipDailyQuests
 };

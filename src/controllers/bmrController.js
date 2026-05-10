@@ -3,7 +3,7 @@ import BmrLog from '~/models/bmrLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import gamificationService from '~/services/gamificationService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 // Mifflin-St Jeor Formula
 const calculateBMR = (weight, height, age, gender) => {
@@ -59,7 +59,7 @@ export const calculateAndLogBMR = async (req, res) => {
     const savedLog = await bmrLog.save();
 
     // Process gamification
-    const gamificationResult = await gamificationService.processActivity(userId, {
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
       type: 'bmr',
       logId: savedLog._id,
       logModel: 'bmrLogs',
@@ -71,13 +71,7 @@ export const calculateAndLogBMR = async (req, res) => {
       data: {
         bmr,
         savedLog,
-        novaCoinsEarned: gamificationResult.coinsEarned,
-        bonusCoins: gamificationResult.bonusCoins,
-        totalCoins: gamificationResult.totalCoins,
-        streak: gamificationResult.streak,
-        level: gamificationResult.level,
-        questsCompleted: gamificationResult.questsCompleted,
-        badgesUnlocked: gamificationResult.badgesUnlocked
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'BMR calculated successfully',
     });

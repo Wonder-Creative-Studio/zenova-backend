@@ -8,8 +8,8 @@ import novaCoinsService from '~/services/novaCoinsService';
 // ─── Helper: map activity types to the 3 Core Nova Categories ────────────
 const getNovaCategory = (activityType) => {
     const move = ['workout', 'steps', 'yoga'];
-    const eat = ['meal', 'water'];
-    const thrive = ['mood', 'meditation', 'sleep', 'reading', 'habit', 'screen_time'];
+    const eat = ['meal', 'water', 'food'];
+    const thrive = ['mood', 'meditation', 'sleep', 'reading', 'habit', 'screen_time', 'bmr', 'menstrual', 'medicine', 'measurement'];
     if (move.includes(activityType)) return 'move';
     if (eat.includes(activityType)) return 'eat';
     if (thrive.includes(activityType)) return 'thrive';
@@ -34,6 +34,30 @@ const applyMedals = (base, bypassLimit, stats) => {
     return Math.min(base, spaceLeft);
 };
 
+// ─── Helper: check if two dates are the same calendar day ─────────────────
+const isSameDay = (d1, d2) => {
+    return d1.getDate() === d2.getDate() &&
+        d1.getMonth() === d2.getMonth() &&
+        d1.getFullYear() === d2.getFullYear();
+};
+
+// ─── Helper: check if d1 is exactly one calendar day before d2 ────────────
+const isYesterday = (d1, d2) => {
+    const yesterday = new Date(d2);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return isSameDay(d1, yesterday);
+};
+
+// ─── Helper: check if a streak pause covers the missed day ────────────────
+const isPauseCovering = (pausedUntil, now) => {
+    if (!pausedUntil) return false;
+    const pauseDate = new Date(pausedUntil);
+    const dayBeforeNow = new Date(now);
+    dayBeforeNow.setDate(dayBeforeNow.getDate() - 1);
+    dayBeforeNow.setHours(0, 0, 0, 0);
+    return pauseDate >= dayBeforeNow;
+};
+
 // ─── Main V2 processing function ─────────────────────────────────────────
 export const processActivityV2 = async (userId, activity) => {
     try {
@@ -53,15 +77,17 @@ export const processActivityV2 = async (userId, activity) => {
 
         // ── Daily reset ───────────────────────────────────────────────────
         const todayDate = stats.today?.date ? new Date(stats.today.date) : new Date(0);
-        const isNewDay = todayDate.getDate() !== now.getDate() ||
-            todayDate.getMonth() !== now.getMonth() ||
-            todayDate.getFullYear() !== now.getFullYear();
+        const isNewDay = !isSameDay(todayDate, now);
 
         if (isNewDay) {
             stats.today.medalsEarnedStandard = 0;
             stats.today.coinsEarned = 0;
             stats.today.categoriesTracked = [];
             stats.today.date = now;
+            stats.today.moodCoins = 0;
+            stats.today.workoutCoins = 0;
+            stats.today.mealCoins = 0;
+            stats.today.snapMealCount = 0;
         }
 
         // ── Accumulators for this call ────────────────────────────────────
@@ -89,7 +115,7 @@ export const processActivityV2 = async (userId, activity) => {
         // 2. REGULAR STREAK — update daily streak, award streak bonuses
         // ═══════════════════════════════════════════════════════════════════
         let isStreakContinued = false;
-        let isNewRegularStreak = false; // first day of a fresh streak
+        let isNewRegularStreak = false; // first activity of a new streak day
         let regStreakBonusMedals = 0;
         let regStreakBonusNC = 0;
 
@@ -97,49 +123,30 @@ export const processActivityV2 = async (userId, activity) => {
             ? new Date(stats.streaks.lastActiveDate)
             : null;
 
-        const yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-
         if (!lastActive) {
             // Brand new streak
             isNewRegularStreak = true;
             stats.streaks.current = 1;
+        } else if (isSameDay(lastActive, now)) {
+            // Already tracked today — streak continues, no additional streak bonus
+            isStreakContinued = true;
+        } else if (isYesterday(lastActive, now)) {
+            // Consecutive day → increment streak
+            stats.streaks.current = (stats.streaks.current || 0) + 1;
+            isNewRegularStreak = true;
         } else {
-            const lastDay = lastActive.getDate();
-            const lastMon = lastActive.getMonth();
-            const lastYr = lastActive.getFullYear();
-
-            const isToday = lastDay === now.getDate() && lastMon === now.getMonth() && lastYr === now.getFullYear();
-            const isYesterday = lastDay === yesterday.getDate() && lastMon === yesterday.getMonth() && lastYr === yesterday.getFullYear();
-
-            if (isToday) {
-                // Already tracked today — streak continues but no additional streak bonus this call
-                isStreakContinued = true;
-            } else if (isYesterday) {
-                // Consecutive day → increment streak
+            // Gap > 1 day — check if pause covers the missed day
+            if (isPauseCovering(stats.streaks.regularPausedUntil, now)) {
+                // Pause covers — keep streak, increment
                 stats.streaks.current = (stats.streaks.current || 0) + 1;
                 isNewRegularStreak = true;
             } else {
-                // Streak broken — check if pause is active (covers the missed day)
-                const pausedUntil = stats.streaks.regularPausedUntil
-                    ? new Date(stats.streaks.regularPausedUntil)
-                    : null;
-                const dayBeforeNow = new Date(now);
-                dayBeforeNow.setDate(dayBeforeNow.getDate() - 1);
-                dayBeforeNow.setHours(0, 0, 0, 0);
-
-                if (pausedUntil && pausedUntil >= dayBeforeNow) {
-                    // Pause covers the missed day — keep streak, just increment as if yesterday
-                    stats.streaks.current = (stats.streaks.current || 0) + 1;
-                    isNewRegularStreak = true;
-                } else {
-                    // No pause — streak broken, restart
-                    stats.streaks.current = 1;
-                    isNewRegularStreak = true;
-                }
-                // Consume the pause regardless (one-time use)
-                stats.streaks.regularPausedUntil = null;
+                // No pause — streak broken, restart
+                stats.streaks.current = 1;
+                isNewRegularStreak = true;
             }
+            // Consume the pause (one-time use)
+            stats.streaks.regularPausedUntil = null;
         }
 
         if (stats.streaks.current > (stats.streaks.longest || 0)) {
@@ -158,8 +165,10 @@ export const processActivityV2 = async (userId, activity) => {
             regStreakBonusNC += configV2.ACTIONS_CONFIG.daily_regular_streak_bonus.baseNC;
             stats.today.medalsEarnedStandard += dailyStreakMedals;
 
+            events.push({ event: 'Daily Streak Bonus', medals: dailyStreakMedals, nc: configV2.ACTIONS_CONFIG.daily_regular_streak_bonus.baseNC });
+
             // 7-day streak milestone
-            if (stats.streaks.current % 7 === 0) {
+            if (stats.streaks.current > 0 && stats.streaks.current % 7 === 0) {
                 const sevenDayMedals = applyMedals(
                     configV2.ACTIONS_CONFIG.seven_day_regular_streak_bonus.medals,
                     configV2.ACTIONS_CONFIG.seven_day_regular_streak_bonus.bypassLimit,
@@ -170,8 +179,6 @@ export const processActivityV2 = async (userId, activity) => {
                 stats.today.medalsEarnedStandard += sevenDayMedals;
                 events.push({ event: `${stats.streaks.current}-Day Streak Milestone!`, medals: sevenDayMedals, nc: configV2.ACTIONS_CONFIG.seven_day_regular_streak_bonus.baseNC });
             }
-
-            events.push({ event: 'Daily Streak Bonus', medals: regStreakBonusMedals, nc: regStreakBonusNC });
         }
 
         // ═══════════════════════════════════════════════════════════════════
@@ -212,23 +219,40 @@ export const processActivityV2 = async (userId, activity) => {
                 totalMedalsBonus += nsConfig.medals;
 
                 // Update Nova-streak counts
-                let nsCurrent = stats.streaks.novaCurrent || 0;
-                let nsLongest = stats.streaks.novaLongest || 0;
-                nsCurrent += 1;
-                if (nsCurrent > nsLongest) nsLongest = nsCurrent;
-                stats.streaks.novaCurrent = nsCurrent;
-                stats.streaks.novaLongest = nsLongest;
+                const lastNovaLog = stats.streaks.lastNovaLogDate
+                    ? new Date(stats.streaks.lastNovaLogDate)
+                    : null;
+
+                if (!lastNovaLog || isYesterday(lastNovaLog, now)) {
+                    // Consecutive nova day or first ever → increment
+                    stats.streaks.novaCurrent = (stats.streaks.novaCurrent || 0) + 1;
+                } else if (lastNovaLog && isSameDay(lastNovaLog, now)) {
+                    // Same day — already counted, don't increment again
+                } else {
+                    // Gap > 1 day — check nova pause
+                    if (isPauseCovering(stats.streaks.novaPausedUntil, now)) {
+                        stats.streaks.novaCurrent = (stats.streaks.novaCurrent || 0) + 1;
+                    } else {
+                        // Nova-streak broken, restart
+                        stats.streaks.novaCurrent = 1;
+                    }
+                    stats.streaks.novaPausedUntil = null;
+                }
+
+                if (stats.streaks.novaCurrent > (stats.streaks.novaLongest || 0)) {
+                    stats.streaks.novaLongest = stats.streaks.novaCurrent;
+                }
                 stats.streaks.lastNovaLogDate = now;
 
                 events.push({ event: 'Nova-streak Activated! Logged Eat, Move & Thrive!', medals: nsConfig.medals, nc: nsConfig.baseNC, bypassLimit: true });
 
                 // 7-day Nova-streak milestone
-                if (nsCurrent % 7 === 0) {
+                if (stats.streaks.novaCurrent > 0 && stats.streaks.novaCurrent % 7 === 0) {
                     const nsBonus = configV2.ACTIONS_CONFIG.seven_day_nova_streak_bonus;
                     novaBonusMedals += nsBonus.medals;
                     novaBonusNC += nsBonus.baseNC;
                     totalMedalsBonus += nsBonus.medals;
-                    events.push({ event: `${nsCurrent}-Day Nova-streak Milestone!`, medals: nsBonus.medals, nc: nsBonus.baseNC, bypassLimit: true });
+                    events.push({ event: `${stats.streaks.novaCurrent}-Day Nova-streak Milestone!`, medals: nsBonus.medals, nc: nsBonus.baseNC, bypassLimit: true });
                 }
             }
         }
@@ -291,7 +315,30 @@ export const processActivityV2 = async (userId, activity) => {
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // 8. LEVEL-UP GIFT DISPATCH
+        // 8. CHECK QUEST COMPLETION
+        // ═══════════════════════════════════════════════════════════════════
+        let questsCompleted = [];
+        try {
+            const questService = require('~/services/questService').default;
+            const statsService = require('~/services/statsService').default;
+            const fullStats = await statsService.getStats(userId);
+            const questResult = await questService.checkQuestCompletion(userId, {
+                stats: fullStats,
+                streakDays: stats.streaks.current
+            });
+            questsCompleted = questResult?.completed || [];
+
+            // Award medals + NC for each completed quest via V2 pipeline
+            for (const completedQuest of questsCompleted) {
+                const questCategory = completedQuest.category || 'daily';
+                await processQuestCompletion(userId, questCategory, completedQuest.questId);
+            }
+        } catch (questErr) {
+            console.error('Quest check error (non-fatal):', questErr.message);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // 9. LEVEL-UP GIFT DISPATCH
         // ═══════════════════════════════════════════════════════════════════
         const levelUpGifts = [];
         if (hasLeveledUp) {
@@ -327,7 +374,7 @@ export const processActivityV2 = async (userId, activity) => {
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // 9. RETURN SUMMARY
+        // 10. RETURN SUMMARY
         // ═══════════════════════════════════════════════════════════════════
         const currentLevelData = configV2.LEVEL_MAP[newLevel] || {};
         return {
@@ -352,7 +399,8 @@ export const processActivityV2 = async (userId, activity) => {
                 current: stats.streaks.current,
                 longest: stats.streaks.longest,
                 novaCurrent: stats.streaks.novaCurrent,
-                novaLongest: stats.streaks.novaLongest
+                novaLongest: stats.streaks.novaLongest,
+                boostMultiplier: maxBoost,
             },
             // Events that fired
             events,
@@ -360,6 +408,8 @@ export const processActivityV2 = async (userId, activity) => {
             isCategoryActivation: isFirstOfCategory,
             isNovaStreak: didActivateNovaStreak,
             isStreakContinued,
+            // Quest completions from this activity
+            questsCompleted,
             // Level-up gifts dispatched this call
             levelUpGifts
         };
@@ -370,7 +420,120 @@ export const processActivityV2 = async (userId, activity) => {
     }
 };
 
+// ─── Process quest completion — awards medals + NC per spec ───────────────
+export const processQuestCompletion = async (userId, questType, questId) => {
+    try {
+        const actionKeyMap = {
+            'daily': 'daily_quest',
+            'weekly': 'weekly_quest',
+            'monthly': 'monthly_quest',
+        };
+        const actionKey = actionKeyMap[questType];
+        if (!actionKey || !configV2.ACTIONS_CONFIG[actionKey]) {
+            return { error: `Unknown quest type: ${questType}` };
+        }
+
+        const actionConfig = configV2.ACTIONS_CONFIG[actionKey];
+        const user = await User.findById(userId);
+        if (!user) return { error: 'User not found' };
+
+        let stats = await UserStats.findOne({ userId });
+        if (!stats) stats = await UserStats.create({ userId });
+
+        // Award medals (with/without daily cap)
+        const medals = applyMedals(actionConfig.medals, actionConfig.bypassLimit, stats);
+        if (!actionConfig.bypassLimit) {
+            stats.today.medalsEarnedStandard += medals;
+        }
+
+        // Update user medals + level/rank
+        const newTotalMedals = (user.medals || 0) + medals;
+        const newLevel = configV2.getLevelFromMedals(newTotalMedals);
+        const newRank = configV2.LEVEL_MAP[newLevel]?.rank || user.rank;
+
+        user.medals = newTotalMedals;
+        user.level = newLevel;
+        user.rank = newRank;
+        await user.save();
+        await stats.save();
+
+        // Award NC
+        const nc = actionConfig.baseNC;
+        if (nc > 0) {
+            await award(userId, {
+                amount: nc,
+                type: 'quest_reward',
+                category: 'quest',
+                description: `${questType} quest completed`,
+                metadata: { questId: questId?.toString(), questType }
+            });
+        }
+
+        return { medals, nc, totalMedals: newTotalMedals, level: newLevel, rank: newRank };
+    } catch (err) {
+        console.error('processQuestCompletion error:', err);
+        return { error: err.message };
+    }
+};
+
+// ─── Format V2 gamification result for controller responses ──────────────
+export const formatGamificationResponse = (result) => ({
+    gamification: {
+        medalsEarned: result.medalsEarned || 0,
+        totalMedals: result.totalMedals || 0,
+        ncEarned: result.ncEarned || 0,
+        level: result.level || 1,
+        rank: result.rank || 'Awakener',
+        hasLeveledUp: result.hasLeveledUp || false,
+        streaks: result.streaks || { current: 0, longest: 0, novaCurrent: 0, novaLongest: 0 },
+        events: result.events || [],
+        questsCompleted: result.questsCompleted || [],
+        levelUpGifts: result.levelUpGifts || [],
+        isCategoryActivation: result.isCategoryActivation || false,
+        isNovaStreak: result.isNovaStreak || false,
+    }
+});
+
+// ─── Get User Summary ────────────────────────────────────────────────────
+export const getSummary = async (userId) => {
+    const user = await User.findById(userId);
+    if (!user) throw new Error('User not found');
+    
+    let stats = await UserStats.findOne({ userId });
+    if (!stats) stats = await UserStats.create({ userId });
+    
+    const currentLevel = user.level || 1;
+    const currentTotalMedals = user.medals || 0;
+    const levelConfig = configV2.LEVEL_MAP[currentLevel] || {};
+    const medalsRequiredTotal = levelConfig.medalsRequiredTotal || 0;
+    
+    let medalsToNextLevel = medalsRequiredTotal - currentTotalMedals;
+    if (medalsToNextLevel < 0) medalsToNextLevel = 0;
+    
+    return {
+        novaCoins: user.novaCoins || 0,
+        medals: currentTotalMedals,
+        level: currentLevel,
+        rank: user.rank || 'Awakener',
+        medalsToNextLevel,
+        streak: {
+            current: stats.streaks?.current || 0,
+            longest: stats.streaks?.longest || 0,
+            novaCurrent: stats.streaks?.novaCurrent || 0,
+            novaLongest: stats.streaks?.novaLongest || 0
+        },
+        dailyCaps: {
+            medalsEarnedStandard: stats.today?.medalsEarnedStandard || 0,
+            limit: configV2.DAILY_MEDAL_LIMIT,
+            categoriesTracked: stats.today?.categoriesTracked || []
+        }
+    };
+};
+
 export default {
     processActivityV2,
-    getNovaCategory
+    processQuestCompletion,
+    formatGamificationResponse,
+    getNovaCategory,
+    getSummary
 };

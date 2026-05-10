@@ -3,7 +3,7 @@ import ScreenTimeLog from '~/models/screenTimeLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import gamificationService from '~/services/gamificationService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 // Helper to format minutes to "Xh Ym" format
 const formatDuration = (minutes) => {
@@ -81,7 +81,7 @@ export const logScreenTime = async (req, res) => {
     const savedLog = await screenTimeLog.save();
 
     // Process gamification
-    const gamificationResult = await gamificationService.processActivity(userId, {
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
       type: 'screen_time',
       logId: savedLog._id,
       logModel: 'screenTimeLogs',
@@ -92,13 +92,7 @@ export const logScreenTime = async (req, res) => {
       success: true,
       data: {
         savedLog,
-        novaCoinsEarned: gamificationResult.coinsEarned,
-        bonusCoins: gamificationResult.bonusCoins,
-        totalCoins: gamificationResult.totalCoins,
-        streak: gamificationResult.streak,
-        level: gamificationResult.level,
-        questsCompleted: gamificationResult.questsCompleted,
-        badgesUnlocked: gamificationResult.badgesUnlocked
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Screen time logged successfully',
     });

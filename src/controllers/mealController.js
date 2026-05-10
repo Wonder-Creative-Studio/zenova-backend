@@ -8,6 +8,7 @@ import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import questService from '~/services/questService';
 import streakService from '~/services/streakService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 // Helper: Calculate target calories based on user profile
 const calculateTargetCalories = (user) => {
@@ -142,22 +143,20 @@ export const logMeal = async (req, res) => {
 
     const savedLog = await mealLog.save();
 
-    // Update streak (if needed)
-    const user = await User.findById(userId);
-    const streakDays = await streakService.updateStreak(userId);
-
-    await User.findByIdAndUpdate(userId, { streakDays });
-
-    // ✅ Check quests
-    await questService.checkQuestCompletion(userId, {
-      streakDays,
-      mealLogs: 1,
-      totalNovaCoins: user.novaCoins + 5,
+    // Process gamification via V2 (handles coins, streaks, category activation, quests)
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
+      type: 'meal',
+      logId: savedLog._id,
+      logModel: 'mealLogs',
+      data: { calories, protein, carbs, fats }
     });
 
     return res.json({
       success: true,
-      data: savedLog,
+      data: {
+        savedLog,
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
+      },
       message: 'Meal logged successfully',
     });
   } catch (err) {

@@ -3,7 +3,7 @@ import Medicine from '~/models/medicineModel';
 import MedicineLog from '~/models/medicineLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
-import APIError from '~/utils/apiError';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 export const addMedicine = async (req, res) => {
   try {
@@ -77,12 +77,20 @@ export const logMedicineIntake = async (req, res) => {
 
     const savedLog = await medicineLog.save();
 
-    // Award NovaCoins (1 coin per dose)
-    const novaCoinsEarned = 1;
+    // Process gamification via V2
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
+      type: 'medicine',
+      logId: savedLog._id,
+      logModel: 'medicineLogs',
+      data: { medicineId, status }
+    });
 
     return res.json({
       success: true,
-      data:{ savedLog, novaCoinsEarned },
+      data: { 
+        savedLog, 
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult) 
+      },
       message: 'Medicine intake logged successfully',
     });
   } catch (err) {

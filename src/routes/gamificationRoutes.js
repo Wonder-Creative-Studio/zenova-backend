@@ -20,6 +20,8 @@ router.get('/coins/earnings', catchAsync(gamificationController.getEarningsBreak
 // Quests
 router.get('/quests/journey', catchAsync(gamificationController.getQuestJourney));
 router.get('/quests', catchAsync(gamificationController.getQuests));
+router.post('/quests/start', catchAsync(gamificationController.startDailyQuests));
+router.post('/quests/skip', catchAsync(gamificationController.skipDailyQuests));
 
 // Stats
 router.get('/stats', catchAsync(gamificationController.getStats));

@@ -3,6 +3,8 @@ import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import { normalizeLocation } from '~/utils/location';
+import novaCoinsService from '~/services/novaCoinsService';
+import UserStats from '~/models/userStatsModel';
 
 export const saveProfile = async (req, res) => {
   try {
@@ -100,6 +102,10 @@ export const saveProfile = async (req, res) => {
       updateData.location = normalizedLocation;
     }
 
+    // Check previous onboarding state (for idempotent coin award)
+    const existingUser = await User.findById(userId).select('isOnboarded');
+    const wasOnboarded = existingUser?.isOnboarded || false;
+
     // Update user
     const updatedUser = await User.findByIdAndUpdate(
       userId,
@@ -115,9 +121,36 @@ export const saveProfile = async (req, res) => {
       });
     }
 
+    // ── Award 1000 Nova Coins for completing onboarding (one-time) ──
+    let onboardingBonus = null;
+    if (!wasOnboarded && updatedUser.isOnboarded) {
+      try {
+        onboardingBonus = await novaCoinsService.awardCoins(userId, {
+          amount: 1000,
+          type: 'onboarding_reward',
+          category: 'onboarding',
+          description: 'Welcome bonus: 1000 Nova Coins for completing onboarding',
+        });
+        // Initialize UserStats for gamification tracking
+        await UserStats.getOrCreate(userId);
+      } catch (bonusErr) {
+        console.error('Onboarding bonus award error:', bonusErr);
+        // Don't fail the onboarding if bonus fails
+      }
+    }
+
+    const responseData = updatedUser.toObject();
+    if (onboardingBonus) {
+      responseData.novaCoins = onboardingBonus.balance;
+    }
+
     return res.json({
       success: true,
-      data: updatedUser,
+      data: {
+        ...responseData,
+        onboardingBonus: onboardingBonus ? { coinsAwarded: 1000, balance: onboardingBonus.balance } : null,
+        novaCoinsEarned: onboardingBonus ? 1000 : 0,
+      },
       message: 'Profile saved successfully',
     });
   } catch (err) {

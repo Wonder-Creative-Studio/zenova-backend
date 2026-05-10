@@ -4,7 +4,8 @@ import MeditationPlan from '~/models/meditationPlanModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import gamificationService from '~/services/gamificationService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
+import novaCoinsService from '~/services/novaCoinsService';
 import MoodLog from '~/models/moodLogModel';
 
 export const logMeditation = async (req, res) => {
@@ -50,25 +51,29 @@ export const logMeditation = async (req, res) => {
     }
 
     // Process gamification
-    const gamificationResult = await gamificationService.processActivity(userId, {
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
       type: 'meditation',
       logId: savedLog._id,
       logModel: 'meditationLogs',
       data: { durationMin }
     });
 
+    if (extraCoins > 0) {
+      await novaCoinsService.awardCoins(userId, {
+        amount: extraCoins,
+        type: 'mood_suggestion_reward',
+        category: 'meditation',
+        description: 'Completed suggested meditation activity'
+      });
+      gamificationResult.ncEarned = (gamificationResult.ncEarned || 0) + extraCoins;
+    }
+
     return res.json({
       success: true,
       data: {
         savedLog,
-        novaCoinsEarned: gamificationResult.coinsEarned + extraCoins,
         extraCoins,
-        bonusCoins: gamificationResult.bonusCoins,
-        totalCoins: gamificationResult.totalCoins,
-        streak: gamificationResult.streak,
-        level: gamificationResult.level,
-        questsCompleted: gamificationResult.questsCompleted,
-        badgesUnlocked: gamificationResult.badgesUnlocked
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Meditation session logged successfully',
     });

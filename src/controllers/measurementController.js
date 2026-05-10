@@ -5,6 +5,7 @@ import MeasurementReminder from '~/models/measurementReminderModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 export const setGoals = async (req, res) => {
   try {
@@ -65,15 +66,19 @@ export const logMeasurements = async (req, res) => {
       { new: true, upsert: true }
     );
 
-    // Award NovaCoins (1 coin per measurement field logged)
-    const fieldsLogged = [neck, chest, waist, hips, thigh, arm].filter(v => v !== undefined && v !== null).length;
-    const novaCoinsEarned = fieldsLogged > 0 ? 5 : 0;
+    // Process gamification via V2
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
+      type: 'measurement',
+      logId: log._id,
+      logModel: 'bodyLogs',
+      data: { neck, chest, waist, hips, thigh, arm }
+    });
 
     return res.json({
       success: true,
-       data:{
+      data: {
         log,
-        novaCoinsEarned,
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult),
       },
       message: 'Body measurements logged successfully',
     });

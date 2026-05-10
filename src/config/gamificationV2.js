@@ -9,7 +9,7 @@ export const RANKS_CONFIG = [
     { name: 'Life Architect', levels: 9, medalsPerLevel: 25, ncMultiplier: 1.1, maxDailyNC: 1100 },
     { name: 'Sage', levels: 10, medalsPerLevel: 30, ncMultiplier: 1.2, maxDailyNC: 1200 },
     { name: 'Ascended', levels: 14, medalsPerLevel: 30, ncMultiplier: 1.2, maxDailyNC: 1200 },
-    { name: 'Grand Zenova', levels: 21, medalsPerLevel: 35, ncMultiplier: 1.25, maxDailyNC: 1250 }
+    { name: 'Grand Zenova', levels: 22, medalsPerLevel: 35, ncMultiplier: 1.25, maxDailyNC: 1250 }
 ];
 
 export const DAILY_MEDAL_LIMIT = 10;
@@ -31,14 +31,15 @@ export const LEVEL_GIFTS = {
     10: { giftType: 'nova_coins', giftValue: 600, giftLabel: '600 Nova Coins + coupons' },
     11: { giftType: 'nova_coins', giftValue: 700, giftLabel: '700 Nova Coins + coupons' },
     12: { giftType: 'nova_coins', giftValue: 800, giftLabel: '800 Nova Coins + coupons' },
-    // Note: Level 13 is skipped in the spec — jumps from 12 to 14
-    14: { giftType: 'nova_coins', giftValue: 900, giftLabel: '900 Nova Coins + coupons' },
+    // Internal level 13 = CSV level 14 (CSV skips level 13)
+    13: { giftType: 'nova_coins', giftValue: 900, giftLabel: '900 Nova Coins + coupons' },
+    14: { giftType: 'nova_coins', giftValue: 1000, giftLabel: '1000 Nova Coins + coupons' },
     15: { giftType: 'nova_coins', giftValue: 1000, giftLabel: '1000 Nova Coins + coupons' },
     16: { giftType: 'nova_coins', giftValue: 1000, giftLabel: '1000 Nova Coins + coupons' },
     17: { giftType: 'nova_coins', giftValue: 1000, giftLabel: '1000 Nova Coins + coupons' },
     18: { giftType: 'nova_coins', giftValue: 1000, giftLabel: '1000 Nova Coins + coupons' },
     19: { giftType: 'nova_coins', giftValue: 1000, giftLabel: '1000 Nova Coins + coupons' },
-    20: { giftType: 'nova_coins', giftValue: 1000, giftLabel: '1000 Nova Coins + coupons' },
+    20: { giftType: 'nova_coins', giftValue: 1200, giftLabel: '1200 Nova Coins + coupons' },
     21: { giftType: 'nova_coins', giftValue: 1200, giftLabel: '1200 Nova Coins + coupons' },
     22: { giftType: 'nova_coins', giftValue: 1200, giftLabel: '1200 Nova Coins + coupons' },
     23: { giftType: 'nova_coins', giftValue: 1200, giftLabel: '1200 Nova Coins + coupons' },
@@ -46,7 +47,7 @@ export const LEVEL_GIFTS = {
     25: { giftType: 'nova_coins', giftValue: 1200, giftLabel: '1200 Nova Coins + coupons' },
     26: { giftType: 'nova_coins', giftValue: 1200, giftLabel: '1200 Nova Coins + coupons' },
     27: { giftType: 'nova_coins', giftValue: 1200, giftLabel: '1200 Nova Coins + coupons' },
-    28: { giftType: 'nova_coins', giftValue: 1200, giftLabel: '1200 Nova Coins + coupons' },
+    28: { giftType: 'nova_coins', giftValue: 1500, giftLabel: '1500 Nova Coins + coupons' },
     29: { giftType: 'nova_coins', giftValue: 1500, giftLabel: '1500 Nova Coins + coupons' },
     30: { giftType: 'nova_coins', giftValue: 1500, giftLabel: '1500 Nova Coins + coupons' },
     31: { giftType: 'nova_coins', giftValue: 1500, giftLabel: '1500 Nova Coins + coupons' },
@@ -55,7 +56,7 @@ export const LEVEL_GIFTS = {
     34: { giftType: 'nova_coins', giftValue: 1500, giftLabel: '1500 Nova Coins + coupons' },
     35: { giftType: 'nova_coins', giftValue: 1500, giftLabel: '1500 Nova Coins + coupons' },
     36: { giftType: 'nova_coins', giftValue: 1500, giftLabel: '1500 Nova Coins + coupons' },
-    37: { giftType: 'nova_coins', giftValue: 1500, giftLabel: '1500 Nova Coins + coupons' },
+    37: { giftType: 'nova_coins', giftValue: 2000, giftLabel: '2000 Nova Coins + coupons' },
     38: { giftType: 'nova_coins', giftValue: 2000, giftLabel: '2000 Nova Coins + coupons' },
     39: { giftType: 'nova_coins', giftValue: 2000, giftLabel: '2000 Nova Coins + coupons' },
     40: { giftType: 'nova_coins', giftValue: 2000, giftLabel: '2000 Nova Coins + coupons' },
@@ -65,7 +66,7 @@ export const LEVEL_GIFTS = {
     44: { giftType: 'nova_coins', giftValue: 2000, giftLabel: '2000 Nova Coins + coupons' },
     45: { giftType: 'nova_coins', giftValue: 2000, giftLabel: '2000 Nova Coins + coupons' },
     46: { giftType: 'nova_coins', giftValue: 2000, giftLabel: '2000 Nova Coins + coupons' },
-    47: { giftType: 'nova_coins', giftValue: 2000, giftLabel: '2000 Nova Coins + coupons' },
+    47: { giftType: 'nova_coins', giftValue: 2500, giftLabel: '2500 Nova Coins + coupons' },
     48: { giftType: 'nova_coins', giftValue: 2500, giftLabel: '2500 Nova Coins + coupons' },
     49: { giftType: 'nova_coins', giftValue: 2500, giftLabel: '2500 Nova Coins + coupons' },
     50: { giftType: 'nova_coins', giftValue: 2500, giftLabel: '2500 Nova Coins + coupons' },
@@ -79,7 +80,7 @@ export const LEVEL_GIFTS = {
     58: { giftType: 'nova_coins', giftValue: 2500, giftLabel: '2500 Nova Coins + coupons' },
     59: { giftType: 'nova_coins', giftValue: 2500, giftLabel: '2500 Nova Coins + coupons' },
     60: { giftType: 'nova_coins', giftValue: 2500, giftLabel: '2500 Nova Coins + coupons' },
-    61: { giftType: 'nova_coins', giftValue: 2500, giftLabel: '2500 Nova Coins + coupons' },
+    61: { giftType: 'nova_coins', giftValue: 3000, giftLabel: '3000 Nova Coins + coupons' },
     62: { giftType: 'nova_coins', giftValue: 3000, giftLabel: '3000 Nova Coins + coupons' },
     63: { giftType: 'nova_coins', giftValue: 3000, giftLabel: '3000 Nova Coins + coupons' },
     64: { giftType: 'nova_coins', giftValue: 3000, giftLabel: '3000 Nova Coins + coupons' },
@@ -101,7 +102,6 @@ export const LEVEL_GIFTS = {
     80: { giftType: 'nova_coins', giftValue: 3000, giftLabel: '3000 Nova Coins + coupons' },
     81: { giftType: 'nova_coins', giftValue: 3000, giftLabel: '3000 Nova Coins + coupons' },
     82: { giftType: 'nova_coins', giftValue: 3000, giftLabel: '3000 Nova Coins + coupons' },
-    83: { giftType: 'nova_coins', giftValue: 3000, giftLabel: '3000 Nova Coins + coupons' },
 };
 
 // ─── Level Map (dynamically generated from RANKS_CONFIG) ──────────────────

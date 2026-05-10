@@ -3,7 +3,7 @@ import StepLog from '~/models/stepLogModel';
 import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import gamificationService from '~/services/gamificationService';
+import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 // Helper: Calculate calories burned
 const calculateCaloriesBurned = (steps, weightKg = 70) => {
@@ -94,7 +94,7 @@ export const logSteps = async (req, res) => {
     const savedLog = await stepLog.save();
 
     // Process gamification
-    const gamificationResult = await gamificationService.processActivity(userId, {
+    const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
       type: 'steps',
       logId: savedLog._id,
       logModel: 'stepLogs',
@@ -105,13 +105,7 @@ export const logSteps = async (req, res) => {
       success: true,
       data: {
         savedLog,
-        novaCoinsEarned: gamificationResult.coinsEarned,
-        bonusCoins: gamificationResult.bonusCoins,
-        totalCoins: gamificationResult.totalCoins,
-        streak: gamificationResult.streak,
-        level: gamificationResult.level,
-        questsCompleted: gamificationResult.questsCompleted,
-        badgesUnlocked: gamificationResult.badgesUnlocked
+        ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Steps logged successfully',
     });

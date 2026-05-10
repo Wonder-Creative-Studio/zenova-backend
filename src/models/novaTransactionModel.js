@@ -16,7 +16,7 @@ const novaTransactionSchema = new mongoose.Schema({
     type: {
         type: String,
         enum: ['activity_reward', 'quest_bonus', 'streak_bonus', 'badge_bonus',
-            'referral', 'spent', 'refund', 'admin_adjustment'],
+            'referral', 'spent', 'refund', 'admin_adjustment', 'onboarding_reward'],
         required: true
     },
 
@@ -27,7 +27,8 @@ const novaTransactionSchema = new mongoose.Schema({
             enum: ['mood', 'workout', 'meal', 'meditation', 'yoga', 'sleep',
                 'steps', 'screen_time', 'bmr', 'menstrual', 'habit',
                 'medicine', 'reading', 'measurement', 'quest', 'badge',
-                'streak', 'referral', 'purchase', 'admin'],
+                'streak', 'referral', 'purchase', 'admin', 'onboarding',
+                'streak_pause', 'quest_start', 'quest_skip'],
             required: true
         },
 
