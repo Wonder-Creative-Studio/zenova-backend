@@ -142,6 +142,26 @@ const userSchema = new mongoose.Schema(
         ref: 'quests',
       },
       completedAt: Date,
+      category: String,
+      coinsAwarded: {
+        type: Number,
+        default: 0,
+      },
+      medalsAwarded: {
+        type: Number,
+        default: 0,
+      },
+    }],
+    badges: [{
+      name: {
+        type: String,
+        required: true,
+      },
+      icon: String,
+      unlockedAt: {
+        type: Date,
+        default: Date.now,
+      },
     }],
     lastStreakDate: {
       type: Date,

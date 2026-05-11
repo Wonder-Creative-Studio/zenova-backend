@@ -5,8 +5,7 @@ import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
-import novaCoinsService from '~/services/novaCoinsService';
-import MoodLog from '~/models/moodLogModel';
+import moodSuggestionService from '~/services/moodSuggestionService';
 
 export const logMeditation = async (req, res) => {
   try {
@@ -30,25 +29,7 @@ export const logMeditation = async (req, res) => {
 
     const savedLog = await meditationLog.save();
 
-    // Check for pending mood suggestion
-    const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-
-    const pendingMoodLog = await MoodLog.findOne({
-      userId,
-      loggedAt: { $gte: start, $lte: end },
-      isSuggestionCompleted: false,
-      'suggestedActivity.type': 'meditation'
-    });
-
-    let extraCoins = 0;
-    if (pendingMoodLog) {
-      extraCoins = pendingMoodLog.suggestedActivity.reward;
-      pendingMoodLog.isSuggestionCompleted = true;
-      pendingMoodLog.completedAt = new Date();
-      await pendingMoodLog.save();
-    }
+    const { extraCoins } = await moodSuggestionService.completeSuggestionForType(userId, 'meditation');
 
     // Process gamification
     const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
@@ -58,15 +39,7 @@ export const logMeditation = async (req, res) => {
       data: { durationMin }
     });
 
-    if (extraCoins > 0) {
-      await novaCoinsService.awardCoins(userId, {
-        amount: extraCoins,
-        type: 'mood_suggestion_reward',
-        category: 'meditation',
-        description: 'Completed suggested meditation activity'
-      });
-      gamificationResult.ncEarned = (gamificationResult.ncEarned || 0) + extraCoins;
-    }
+    gamificationResult.ncEarned = (gamificationResult.ncEarned || 0) + extraCoins;
 
     return res.json({
       success: true,

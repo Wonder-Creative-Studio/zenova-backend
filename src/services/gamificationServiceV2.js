@@ -26,6 +26,146 @@ const award = async (userId, payload, logId = null, logModel = null) => {
     return novaCoinsService.awardCoins(userId, p);
 };
 
+const getWeekStart = (date = new Date()) => {
+    const value = new Date(date);
+    value.setHours(0, 0, 0, 0);
+    value.setDate(value.getDate() - value.getDay());
+    return value;
+};
+
+const ACTIVITY_STATS_MAP = {
+    mood: {
+        totalCount: 'moodLogs',
+        weeklyCount: 'moodLogs',
+    },
+    workout: {
+        totalCount: 'workoutLogs',
+        weeklyCount: 'workoutLogs',
+        totalMinutes: 'workoutMinutes',
+        valueKey: 'durationMin',
+        totalValueField: 'caloriesBurned',
+        totalValueKey: 'caloriesBurned',
+    },
+    meal: {
+        totalCount: 'mealLogs',
+        weeklyCount: 'mealLogs',
+    },
+    meditation: {
+        totalCount: 'meditationLogs',
+        weeklyCount: 'meditationLogs',
+        totalMinutes: 'meditationMinutes',
+        valueKey: 'durationMin',
+    },
+    yoga: {
+        totalCount: 'yogaLogs',
+        weeklyCount: 'yogaLogs',
+        totalMinutes: 'yogaMinutes',
+        valueKey: 'durationMin',
+    },
+    sleep: {
+        totalCount: 'sleepLogs',
+        weeklyCount: 'sleepLogs',
+        totalMinutes: 'sleepMinutes',
+        valueKey: 'durationMin',
+    },
+    steps: {
+        totalCount: 'stepLogs',
+        weeklyCount: 'stepLogs',
+        totalValueField: 'steps',
+        totalValueKey: 'steps',
+    },
+    screen_time: {
+        totalCount: 'screenTimeLogs',
+        weeklyCount: 'screenTimeLogs',
+    },
+    bmr: {
+        totalCount: 'bmrLogs',
+        weeklyCount: 'bmrLogs',
+    },
+    menstrual: {
+        totalCount: 'menstrualLogs',
+        weeklyCount: 'menstrualLogs',
+    },
+    habit: {
+        totalCount: 'habitLogs',
+        weeklyCount: 'habitLogs',
+        totalValueField: 'habitCompletions',
+        totalValueKey: 'completedCount',
+    },
+    medicine: {
+        totalCount: 'medicineLogs',
+        weeklyCount: 'medicineLogs',
+    },
+    reading: {
+        totalCount: 'readingLogs',
+        weeklyCount: 'readingLogs',
+        totalMinutes: 'readingMinutes',
+        valueKey: 'durationMin',
+    },
+    measurement: {
+        totalCount: 'measurementLogs',
+        weeklyCount: 'measurementLogs',
+    },
+};
+
+const ensurePeriodicResets = (stats, now = new Date()) => {
+    const todayDate = stats.today?.date ? new Date(stats.today.date) : new Date(0);
+    const isNewDay = !isSameDay(todayDate, now);
+
+    if (isNewDay) {
+        stats.today.medalsEarnedStandard = 0;
+        stats.today.coinsEarned = 0;
+        stats.today.categoriesTracked = [];
+        stats.today.date = now;
+        stats.today.moodCoins = 0;
+        stats.today.workoutCoins = 0;
+        stats.today.mealCoins = 0;
+        stats.today.snapMealCount = 0;
+    }
+
+    const weekStart = getWeekStart(now);
+    const currentWeekStart = stats.thisWeek?.weekStart ? new Date(stats.thisWeek.weekStart) : null;
+    if (!currentWeekStart || currentWeekStart.getTime() !== weekStart.getTime()) {
+        stats.thisWeek.weekStart = weekStart;
+        stats.thisWeek.moodLogs = 0;
+        stats.thisWeek.workoutLogs = 0;
+        stats.thisWeek.mealLogs = 0;
+        stats.thisWeek.meditationLogs = 0;
+        stats.thisWeek.yogaLogs = 0;
+        stats.thisWeek.sleepLogs = 0;
+        stats.thisWeek.stepLogs = 0;
+        stats.thisWeek.screenTimeLogs = 0;
+        stats.thisWeek.readingLogs = 0;
+        stats.thisWeek.medicineLogs = 0;
+        stats.thisWeek.habitLogs = 0;
+        stats.thisWeek.menstrualLogs = 0;
+        stats.thisWeek.bmrLogs = 0;
+        stats.thisWeek.measurementLogs = 0;
+    }
+
+};
+
+const incrementActivityStats = (stats, type, data = {}) => {
+    const mapping = ACTIVITY_STATS_MAP[type];
+    if (!mapping) return;
+
+    if (mapping.totalCount) {
+        stats.totals[mapping.totalCount] = (stats.totals[mapping.totalCount] || 0) + 1;
+    }
+
+    if (mapping.weeklyCount) {
+        stats.thisWeek[mapping.weeklyCount] = (stats.thisWeek[mapping.weeklyCount] || 0) + 1;
+    }
+
+    if (mapping.totalMinutes && data[mapping.valueKey]) {
+        stats.totals[mapping.totalMinutes] = (stats.totals[mapping.totalMinutes] || 0) + data[mapping.valueKey];
+    }
+
+    if (mapping.totalValueField && data[mapping.totalValueKey] !== undefined) {
+        stats.totals[mapping.totalValueField] = (stats.totals[mapping.totalValueField] || 0) + data[mapping.totalValueKey];
+    }
+};
+
 // ─── Helper: apply medals with or without the daily cap ──────────────────
 const applyMedals = (base, bypassLimit, stats) => {
     if (bypassLimit) return base;
@@ -61,7 +201,7 @@ const isPauseCovering = (pausedUntil, now) => {
 // ─── Main V2 processing function ─────────────────────────────────────────
 export const processActivityV2 = async (userId, activity) => {
     try {
-        const { type, logId, logModel } = activity;
+        const { type, logId, logModel, data = {} } = activity;
         const now = new Date();
 
         // ── Load or create user & stats ──────────────────────────────────
@@ -75,20 +215,8 @@ export const processActivityV2 = async (userId, activity) => {
         const rankName = user.rank || 'Awakener';
         const rankConfig = configV2.RANKS_CONFIG.find(r => r.name === rankName) || configV2.RANKS_CONFIG[0];
 
-        // ── Daily reset ───────────────────────────────────────────────────
-        const todayDate = stats.today?.date ? new Date(stats.today.date) : new Date(0);
-        const isNewDay = !isSameDay(todayDate, now);
-
-        if (isNewDay) {
-            stats.today.medalsEarnedStandard = 0;
-            stats.today.coinsEarned = 0;
-            stats.today.categoriesTracked = [];
-            stats.today.date = now;
-            stats.today.moodCoins = 0;
-            stats.today.workoutCoins = 0;
-            stats.today.mealCoins = 0;
-            stats.today.snapMealCount = 0;
-        }
+        ensurePeriodicResets(stats, now);
+        incrementActivityStats(stats, type, data);
 
         // ── Accumulators for this call ────────────────────────────────────
         let totalMedalsFromTracking = 0; // contributes toward daily cap
@@ -287,20 +415,9 @@ export const processActivityV2 = async (userId, activity) => {
         const medalsEarnedBonus = novaBonusMedals; // bypass-limit medals
         const medalsEarned = medalsEarnedStandard + medalsEarnedBonus;
 
-        // ═══════════════════════════════════════════════════════════════════
-        // 6. UPDATE USER LEVEL & RANK
-        // ═══════════════════════════════════════════════════════════════════
         const prevLevel = user.level || 1;
-        const newTotalMedals = (user.medals || 0) + medalsEarned;
-        const newLevel = configV2.getLevelFromMedals(newTotalMedals);
-        const newRank = configV2.LEVEL_MAP[newLevel]?.rank || user.rank;
-        const hasLeveledUp = newLevel > prevLevel;
-
-        user.medals = newTotalMedals;
-        user.level = newLevel;
-        user.rank = newRank;
+        user.medals = (user.medals || 0) + medalsEarned;
         await user.save();
-        await stats.save();
 
         // ═══════════════════════════════════════════════════════════════════
         // 7. AWARD NOVA COINS via transaction layer
@@ -314,28 +431,42 @@ export const processActivityV2 = async (userId, activity) => {
             }, logId, logModel);
         }
 
+        stats.totals.coinsEarned = (stats.totals.coinsEarned || 0) + finalNC;
+        await stats.save();
+
         // ═══════════════════════════════════════════════════════════════════
         // 8. CHECK QUEST COMPLETION
         // ═══════════════════════════════════════════════════════════════════
         let questsCompleted = [];
         try {
             const questService = require('~/services/questService').default;
-            const statsService = require('~/services/statsService').default;
-            const fullStats = await statsService.getStats(userId);
+            const fullStats = await UserStats.findOne({ userId }).lean();
             const questResult = await questService.checkQuestCompletion(userId, {
                 stats: fullStats,
                 streakDays: stats.streaks.current
             });
             questsCompleted = questResult?.completed || [];
-
-            // Award medals + NC for each completed quest via V2 pipeline
-            for (const completedQuest of questsCompleted) {
-                const questCategory = completedQuest.category || 'daily';
-                await processQuestCompletion(userId, questCategory, completedQuest.questId);
-            }
+            stats.totals.coinsEarned = (stats.totals.coinsEarned || 0) + (questResult?.bonusCoins || 0);
         } catch (questErr) {
             console.error('Quest check error (non-fatal):', questErr.message);
         }
+
+        await stats.save();
+
+        const refreshedUser = await User.findById(userId);
+        if (!refreshedUser) throw new Error('User not found after quest processing');
+
+        // ═══════════════════════════════════════════════════════════════════
+        // 6. UPDATE USER LEVEL & RANK
+        // ═══════════════════════════════════════════════════════════════════
+        const newTotalMedals = refreshedUser.medals || 0;
+        const newLevel = configV2.getLevelFromMedals(newTotalMedals);
+        const newRank = configV2.LEVEL_MAP[newLevel]?.rank || refreshedUser.rank || user.rank;
+        const hasLeveledUp = newLevel > prevLevel;
+
+        refreshedUser.level = newLevel;
+        refreshedUser.rank = newRank;
+        await refreshedUser.save();
 
         // ═══════════════════════════════════════════════════════════════════
         // 9. LEVEL-UP GIFT DISPATCH
@@ -367,11 +498,14 @@ export const processActivityV2 = async (userId, activity) => {
                         category: 'level_up',
                         description: `Level ${lvl} reward: ${gift.giftLabel}`
                     }, logId, logModel);
+                    stats.totals.coinsEarned = (stats.totals.coinsEarned || 0) + gift.giftValue;
                 }
 
                 levelUpGifts.push({ level: lvl, ...gift });
             }
         }
+
+        await stats.save();
 
         // ═══════════════════════════════════════════════════════════════════
         // 10. RETURN SUMMARY
@@ -421,60 +555,7 @@ export const processActivityV2 = async (userId, activity) => {
 };
 
 // ─── Process quest completion — awards medals + NC per spec ───────────────
-export const processQuestCompletion = async (userId, questType, questId) => {
-    try {
-        const actionKeyMap = {
-            'daily': 'daily_quest',
-            'weekly': 'weekly_quest',
-            'monthly': 'monthly_quest',
-        };
-        const actionKey = actionKeyMap[questType];
-        if (!actionKey || !configV2.ACTIONS_CONFIG[actionKey]) {
-            return { error: `Unknown quest type: ${questType}` };
-        }
-
-        const actionConfig = configV2.ACTIONS_CONFIG[actionKey];
-        const user = await User.findById(userId);
-        if (!user) return { error: 'User not found' };
-
-        let stats = await UserStats.findOne({ userId });
-        if (!stats) stats = await UserStats.create({ userId });
-
-        // Award medals (with/without daily cap)
-        const medals = applyMedals(actionConfig.medals, actionConfig.bypassLimit, stats);
-        if (!actionConfig.bypassLimit) {
-            stats.today.medalsEarnedStandard += medals;
-        }
-
-        // Update user medals + level/rank
-        const newTotalMedals = (user.medals || 0) + medals;
-        const newLevel = configV2.getLevelFromMedals(newTotalMedals);
-        const newRank = configV2.LEVEL_MAP[newLevel]?.rank || user.rank;
-
-        user.medals = newTotalMedals;
-        user.level = newLevel;
-        user.rank = newRank;
-        await user.save();
-        await stats.save();
-
-        // Award NC
-        const nc = actionConfig.baseNC;
-        if (nc > 0) {
-            await award(userId, {
-                amount: nc,
-                type: 'quest_reward',
-                category: 'quest',
-                description: `${questType} quest completed`,
-                metadata: { questId: questId?.toString(), questType }
-            });
-        }
-
-        return { medals, nc, totalMedals: newTotalMedals, level: newLevel, rank: newRank };
-    } catch (err) {
-        console.error('processQuestCompletion error:', err);
-        return { error: err.message };
-    }
-};
+export const processQuestCompletion = async () => ({ error: 'Quest rewards are processed inside questService.checkQuestCompletion' });
 
 // ─── Format V2 gamification result for controller responses ──────────────
 export const formatGamificationResponse = (result) => ({

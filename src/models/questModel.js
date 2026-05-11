@@ -16,12 +16,12 @@ const questSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['daily', 'weekly', 'milestone', 'special'],
+    enum: ['daily', 'weekly', 'monthly', 'milestone', 'special'],
     default: 'milestone'
   },
   resetPeriod: {
     type: String,
-    enum: ['none', 'daily', 'weekly'],
+    enum: ['none', 'daily', 'weekly', 'monthly'],
     default: 'none'
   },
   expiresAt: { type: Date },

@@ -41,7 +41,7 @@ router.post('/streaks/pause', catchAsync(gamificationController.pauseStreak));
 
 // Get full V2 gamification state
 // GET /api/gamification/get-v2?include=profile,medals,streaks,today,rank,levelMap,rewards,quests
-// Optional: &questPeriod=daily|weekly|milestone|special
+// Optional: &questPeriod=daily|weekly|monthly|milestone|special
 router.get('/get-v2', catchAsync(gamificationController.getV2State));
 
 export default router;

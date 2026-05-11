@@ -66,6 +66,19 @@ export const getNutritionSummary = {
   }),
 };
 
+export const getMealPlan = {
+  query: Joi.object().keys({
+    date: Joi.date().optional(),
+    view: Joi.string().valid('daily', 'weekly').optional(),
+  }),
+};
+
+export const getWeeklyMealPlan = {
+  query: Joi.object().keys({
+    date: Joi.date().optional(),
+  }),
+};
+
 const mealItemSchema = Joi.object().keys({
   food: Joi.string().trim().min(1).max(200).required(),
   calories: Joi.number().min(0).max(10000).required(),
@@ -86,11 +99,38 @@ export const updateMealPlan = {
   }),
 };
 
+export const regenerateMealPlanByMealTime = {
+  body: Joi.object().keys({
+    date: Joi.date().required(),
+    mealTime: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').required(),
+  }),
+};
+
+export const mealLogIdParam = {
+  params: Joi.object().keys({
+    logId: Joi.string().hex().length(24).required(),
+  }),
+};
+
+export const setMealLikeStatus = {
+  params: Joi.object().keys({
+    logId: Joi.string().hex().length(24).required(),
+  }),
+  body: Joi.object().keys({
+    isLiked: Joi.boolean().optional(),
+  }),
+};
+
 export default {
   generateMealPlan,
   logMeal,
   generateGroceryList,
   getMealLogs,
   getNutritionSummary,
-  updateMealPlan
+  getMealPlan,
+  getWeeklyMealPlan,
+  updateMealPlan,
+  regenerateMealPlanByMealTime,
+  mealLogIdParam,
+  setMealLikeStatus,
 };

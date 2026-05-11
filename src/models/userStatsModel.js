@@ -60,6 +60,13 @@ const userStatsSchema = new mongoose.Schema({
         yogaLogs: { type: Number, default: 0 },
         sleepLogs: { type: Number, default: 0 },
         stepLogs: { type: Number, default: 0 },
+        screenTimeLogs: { type: Number, default: 0 },
+        readingLogs: { type: Number, default: 0 },
+        medicineLogs: { type: Number, default: 0 },
+        habitLogs: { type: Number, default: 0 },
+        menstrualLogs: { type: Number, default: 0 },
+        bmrLogs: { type: Number, default: 0 },
+        measurementLogs: { type: Number, default: 0 },
     },
 
     // Daily tracking for caps
@@ -112,6 +119,13 @@ userStatsSchema.statics.resetWeeklyStats = async function () {
                 'thisWeek.yogaLogs': 0,
                 'thisWeek.sleepLogs': 0,
                 'thisWeek.stepLogs': 0,
+                'thisWeek.screenTimeLogs': 0,
+                'thisWeek.readingLogs': 0,
+                'thisWeek.medicineLogs': 0,
+                'thisWeek.habitLogs': 0,
+                'thisWeek.menstrualLogs': 0,
+                'thisWeek.bmrLogs': 0,
+                'thisWeek.measurementLogs': 0,
             }
         }
     );

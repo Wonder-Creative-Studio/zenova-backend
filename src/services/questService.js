@@ -8,155 +8,211 @@ import APIError from '~/utils/apiError';
 
 const parser = new Parser();
 
+const LEGACY_MEDAL_REWARDS = {
+  daily: 2,
+  weekly: 5,
+  monthly: 15,
+};
+
+const startOfDay = (date = new Date()) => {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+};
+
+const startOfWeek = (date = new Date()) => {
+  const value = startOfDay(date);
+  value.setDate(value.getDate() - value.getDay());
+  return value;
+};
+
+const startOfMonth = (date = new Date()) => {
+  const value = startOfDay(date);
+  value.setDate(1);
+  return value;
+};
+
+const getResetWindowStart = (quest, now = new Date()) => {
+  switch (quest.resetPeriod || quest.category) {
+    case 'daily':
+      return startOfDay(now);
+    case 'weekly':
+      return startOfWeek(now);
+    case 'monthly':
+      return startOfMonth(now);
+    default:
+      return null;
+  }
+};
+
+const isQuestCompletedInWindow = (user, quest, now = new Date()) => {
+  const entries = user?.questsCompleted || [];
+  const matching = entries.filter((entry) => entry.questId?.toString() === quest._id.toString());
+  if (!matching.length) return false;
+
+  const windowStart = getResetWindowStart(quest, now);
+  if (!windowStart) return true;
+
+  return matching.some((entry) => entry.completedAt && new Date(entry.completedAt) >= windowStart);
+};
+
+const getQuestMedalReward = (quest) => {
+  if (typeof quest.rewardMedals === 'number' && quest.rewardMedals > 0) {
+    return quest.rewardMedals;
+  }
+  return LEGACY_MEDAL_REWARDS[quest.category] || 0;
+};
+
+const ensureBadge = async (userId, badge = {}) => {
+  if (!badge?.name) return;
+
+  await User.findOneAndUpdate(
+    {
+      _id: userId,
+      'badges.name': { $ne: badge.name },
+    },
+    {
+      $push: {
+        badges: {
+          name: badge.name,
+          icon: badge.icon,
+          unlockedAt: new Date(),
+        },
+      },
+    }
+  );
+};
+
 /**
- * Check quest completion using pre-computed stats
- * @param {ObjectId} userId
- * @param {Object} params
- * @param {Object} params.stats - UserStats object with totals, streaks, thisWeek
- * @param {Number} params.streakDays - Current streak
+ * Check quest completion using already-computed user stats.
+ * Rewards are applied here exactly once per reset window.
  */
 export const checkQuestCompletion = async (userId, params = {}) => {
   try {
     const { stats, streakDays } = params;
-
-    const user = await User.findById(userId).select('questsCompleted novaCoins');
+    const user = await User.findById(userId).select('questsCompleted badges medals level rank');
     if (!user) {
       throw new APIError('User not found', httpStatus.NOT_FOUND);
     }
 
-    const quests = await Quest.find({ isActive: true });
-
+    const quests = await Quest.find({ isActive: true }).sort({ createdAt: 1 });
     const completedQuests = [];
-    let totalBonusCoins = 0;
-
-    // Build evaluation context from stats
+    const now = new Date();
     const context = buildContext(stats, streakDays);
 
     for (const quest of quests) {
-      // Skip if already completed (for milestone quests)
-      if (quest.resetPeriod === 'none') {
-        const alreadyCompleted = (user.questsCompleted || []).some(
-          (q) => q.questId?.toString() === quest._id.toString()
-        );
-        if (alreadyCompleted) continue;
-      }
+      if (quest.expiresAt && new Date(quest.expiresAt) < now) continue;
+      if (isQuestCompletedInWindow(user, quest, now)) continue;
 
+      let conditionMet = false;
       try {
-        const conditionMet = parser.parse(quest.condition).evaluate(context);
-
-        if (conditionMet) {
-          // Award coins
-          if (quest.rewardCoins > 0) {
-            await novaCoinsService.awardCoins(userId, {
-              amount: quest.rewardCoins,
-              type: 'quest_bonus',
-              category: 'quest',
-              refId: quest._id,
-              refModel: 'quests',
-              description: `Quest completed: ${quest.title}`,
-              metadata: { questId: quest._id }
-            });
-
-            totalBonusCoins += quest.rewardCoins;
-          }
-
-          // Add badge if any
-          if (quest.badge?.name) {
-            await User.findByIdAndUpdate(userId, {
-              $push: {
-                badges: {
-                  name: quest.badge.name,
-                  icon: quest.badge.icon,
-                  unlockedAt: new Date(),
-                }
-              }
-            });
-          }
-
-          // Mark quest as completed
-          await User.findByIdAndUpdate(userId, {
-            $push: {
-              questsCompleted: {
-                questId: quest._id,
-                completedAt: new Date(),
-                coinsAwarded: quest.rewardCoins
-              }
-            }
-          });
-
-          completedQuests.push({
-            id: quest._id,
-            title: quest.title,
-            description: quest.description,
-            rewardCoins: quest.rewardCoins,
-            badge: quest.badge
-          });
-        }
+        conditionMet = Boolean(parser.parse(quest.condition).evaluate(context));
       } catch (err) {
         console.error(`Quest condition error (ID: ${quest._id}):`, err.message);
+        continue;
       }
+
+      if (!conditionMet) continue;
+
+      const rewardCoins = quest.rewardCoins || 0;
+      const rewardMedals = getQuestMedalReward(quest);
+
+      if (rewardCoins > 0) {
+        await novaCoinsService.awardCoins(userId, {
+          amount: rewardCoins,
+          type: 'quest_reward',
+          category: 'quest',
+          refId: quest._id,
+          refModel: 'quests',
+          description: `Quest completed: ${quest.title}`,
+          metadata: {
+            questId: quest._id.toString(),
+            questCategory: quest.category,
+          },
+        });
+      }
+
+      if (rewardMedals > 0) {
+        user.medals = (user.medals || 0) + rewardMedals;
+      }
+
+      user.questsCompleted.push({
+        questId: quest._id,
+        completedAt: now,
+        category: quest.category,
+        coinsAwarded: rewardCoins,
+        medalsAwarded: rewardMedals,
+      });
+
+      await ensureBadge(userId, quest.badge);
+
+      completedQuests.push({
+        questId: quest._id,
+        id: quest._id,
+        title: quest.title,
+        description: quest.description,
+        category: quest.category,
+        rewardCoins,
+        rewardMedals,
+        badge: quest.badge || null,
+        completedAt: now,
+      });
+    }
+
+    if (completedQuests.length) {
+      await user.save();
     }
 
     return {
       completed: completedQuests,
-      bonusCoins: totalBonusCoins
+      bonusCoins: completedQuests.reduce((sum, quest) => sum + (quest.rewardCoins || 0), 0),
+      bonusMedals: completedQuests.reduce((sum, quest) => sum + (quest.rewardMedals || 0), 0),
     };
   } catch (err) {
     console.error('Quest service error:', err);
-    return { completed: [], bonusCoins: 0 };
+    return { completed: [], bonusCoins: 0, bonusMedals: 0 };
   }
 };
 
 /**
- * Get user's available quests with progress
+ * Get user's available quests with completion state.
  */
 export const getUserQuests = async (userId) => {
-  const [user, quests, stats] = await Promise.all([
+  const statsService = require('~/services/statsService').default;
+  const [user, quests] = await Promise.all([
     User.findById(userId).select('questsCompleted'),
     Quest.find({ isActive: true }),
-    require('~/services/statsService').getStats(userId)
   ]);
-
-  const completedIds = new Set(
-    (user?.questsCompleted || []).map(q => q.questId?.toString())
-  );
-
+  const stats = await statsService.getStats(userId);
   const streakDays = stats?.streaks?.current || 0;
-  const context = buildContext(stats, streakDays);
+  buildContext(stats, streakDays);
 
-  return quests.map(quest => {
-    const isCompleted = completedIds.has(quest._id.toString());
-
-    return {
-      id: quest._id,
-      title: quest.title,
-      description: quest.description,
-      category: quest.category,
-      rewardCoins: quest.rewardCoins,
-      badge: quest.badge,
-      isCompleted,
-    };
-  });
+  return quests.map((quest) => ({
+    id: quest._id,
+    title: quest.title,
+    description: quest.description,
+    category: quest.category,
+    rewardCoins: quest.rewardCoins || 0,
+    rewardMedals: getQuestMedalReward(quest),
+    badge: quest.badge || null,
+    isCompleted: isQuestCompletedInWindow(user, quest),
+  }));
 };
 
 /**
- * Build context object for condition evaluation
+ * Build the condition-evaluation context from stats.
  */
 function buildContext(stats, streakDays) {
   return {
-    // From UserStats.totals
     totals: stats?.totals || {},
-
-    // From UserStats.streaks
     streaks: {
       current: streakDays || stats?.streaks?.current || 0,
-      longest: stats?.streaks?.longest || 0
+      longest: stats?.streaks?.longest || 0,
+      novaCurrent: stats?.streaks?.novaCurrent || 0,
+      novaLongest: stats?.streaks?.novaLongest || 0,
     },
-
-    // From UserStats.thisWeek
     thisWeek: stats?.thisWeek || {},
-
-    // Flat access for backward compatibility
+    today: stats?.today || {},
     streakDays: streakDays || stats?.streaks?.current || 0,
     mealLogs: stats?.totals?.mealLogs || 0,
     workoutLogs: stats?.totals?.workoutLogs || 0,
@@ -166,11 +222,14 @@ function buildContext(stats, streakDays) {
     moodLogs: stats?.totals?.moodLogs || 0,
     menstrualLogs: stats?.totals?.menstrualLogs || 0,
     screenTimeLogs: stats?.totals?.screenTimeLogs || 0,
+    readingLogs: stats?.totals?.readingLogs || 0,
+    habitLogs: stats?.totals?.habitLogs || 0,
+    stepLogs: stats?.totals?.stepLogs || 0,
     totalNovaCoins: stats?.totals?.coinsEarned || 0,
   };
 }
 
 export default {
   checkQuestCompletion,
-  getUserQuests
+  getUserQuests,
 };

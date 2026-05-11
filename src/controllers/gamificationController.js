@@ -53,6 +53,7 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek  = new Date(startOfToday);
     startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay()); // roll back to Sunday
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     // Latest completedAt per questId (daily/weekly quests accumulate entries across resets)
     const completionMap = new Map();
@@ -69,6 +70,7 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
         if (completedAt) {
             if (quest.category === 'daily')       isCompleted = completedAt >= startOfToday;
             else if (quest.category === 'weekly') isCompleted = completedAt >= startOfWeek;
+            else if (quest.category === 'monthly') isCompleted = completedAt >= startOfMonth;
             else                                  isCompleted = true; // milestone, special: one-shot
         }
         return {
@@ -225,12 +227,12 @@ export const getEarningsBreakdown = async (req, res) => {
  */
 export const getQuests = async (req, res) => {
     try {
-        const VALID_PERIODS = ['daily', 'weekly', 'milestone', 'special'];
+        const VALID_PERIODS = ['daily', 'weekly', 'monthly', 'milestone', 'special'];
         const period = req.query.period?.toLowerCase();
         if (period && !VALID_PERIODS.includes(period)) {
             return res.status(400).json({
                 success: false, data: {},
-                message: 'Invalid period. Must be one of: daily, weekly, milestone, special'
+                message: 'Invalid period. Must be one of: daily, weekly, monthly, milestone, special'
             });
         }
 
@@ -460,7 +462,7 @@ export const testV2GameLogic = async (req, res) => {
  *   include  - comma-separated list of sections to include.
  *              Available: profile, medals, streaks, today, rank, levelMap, rewards, quests
  *              Omit to receive ALL sections.
- *   questPeriod - optional: daily, weekly, milestone, special (used only when quests section is included)
+ *   questPeriod - optional: daily, weekly, monthly, milestone, special (used only when quests section is included)
  */
 export const getV2State = async (req, res) => {
     try {

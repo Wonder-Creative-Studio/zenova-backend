@@ -6,8 +6,6 @@ import User from '~/models/userModel';
 import FoodCatalog from '~/models/foodCatalogModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
-import questService from '~/services/questService';
-import streakService from '~/services/streakService';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 
 // Helper: Calculate target calories based on user profile
@@ -34,52 +32,143 @@ const generateSimplePlan = (targetCalories) => {
   return { breakfast, lunch, dinner, snack, totalCalories: total, targetCalories };
 };
 
+const DAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const normalizePlanDate = (value = new Date()) => {
+  const inputDate = new Date(value);
+  const year = inputDate.getFullYear();
+  const month = String(inputDate.getMonth() + 1).padStart(2, '0');
+  const day = String(inputDate.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+  return new Date(`${dateStr}T00:00:00.000Z`);
+};
+
+const toIsoDate = (value) => normalizePlanDate(value).toISOString().split('T')[0];
+
+const isSameDate = (a, b) => normalizePlanDate(a).getTime() === normalizePlanDate(b).getTime();
+
+const getWeekBounds = (value = new Date()) => {
+  const normalized = normalizePlanDate(value);
+  const mondayOffset = (normalized.getUTCDay() + 6) % 7;
+  const weekStart = new Date(normalized);
+  weekStart.setUTCDate(normalized.getUTCDate() - mondayOffset);
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+
+  return { weekStart, weekEnd };
+};
+
+const getMealVariants = () => ({
+  breakfast: [
+    { food: 'Oats + Banana', calories: 320, protein: 6, carbs: 48, fats: 5 },
+    { food: 'Greek Yogurt + Berries', calories: 280, protein: 18, carbs: 26, fats: 8 },
+    { food: 'Paneer Toast + Apple', calories: 340, protein: 15, carbs: 34, fats: 12 },
+  ],
+  lunch: [
+    { food: 'Quinoa Salad', calories: 220, protein: 5, carbs: 40, fats: 4 },
+    { food: 'Grilled Tofu Bowl', calories: 360, protein: 22, carbs: 35, fats: 10 },
+    { food: 'Dal Rice Bowl', calories: 390, protein: 16, carbs: 54, fats: 9 },
+  ],
+  dinner: [
+    { food: 'Brown Rice + Veggies', calories: 220, protein: 5, carbs: 40, fats: 4 },
+    { food: 'Soup + Stir Fry Veggies', calories: 300, protein: 12, carbs: 28, fats: 11 },
+    { food: 'Khichdi + Curd', calories: 340, protein: 14, carbs: 45, fats: 9 },
+  ],
+  snack: [
+    { food: 'Almonds (10 pcs)', calories: 70, protein: 3, carbs: 2, fats: 6 },
+    { food: 'Fruit Bowl', calories: 110, protein: 2, carbs: 25, fats: 1 },
+    { food: 'Protein Smoothie', calories: 180, protein: 15, carbs: 20, fats: 4 },
+  ],
+});
+
+const recalculateMealPlanTotals = (mealPlan) => {
+  const entries = ['breakfast', 'lunch', 'dinner', 'snack']
+    .map((mealTime) => mealPlan[mealTime])
+    .filter(Boolean);
+
+  mealPlan.totalCalories = entries.reduce((sum, item) => sum + (item.calories || 0), 0);
+  return mealPlan;
+};
+
+const getNextMealVariant = (mealTime, currentFood) => {
+  const variants = getMealVariants()[mealTime] || [];
+  if (!variants.length) {
+    throw new APIError('Unsupported meal time', httpStatus.BAD_REQUEST);
+  }
+
+  const currentIndex = variants.findIndex((item) => item.food === currentFood);
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % variants.length : 0;
+  return variants[nextIndex];
+};
+
+const buildPlanForDate = async (userId, dateInput) => {
+  const date = normalizePlanDate(dateInput);
+  const existingPlan = await MealPlan.findOne({ userId, date });
+  if (existingPlan) {
+    return { plan: existingPlan, generatedNow: false };
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new APIError('User not found', httpStatus.NOT_FOUND);
+  }
+
+  const targetCalories = calculateTargetCalories(user);
+  const mealPlan = new MealPlan({
+    userId,
+    date,
+    ...generateSimplePlan(targetCalories),
+  });
+
+  const savedPlan = await mealPlan.save();
+  return { plan: savedPlan, generatedNow: true };
+};
+
+const buildWeeklySummary = (plans) => {
+  const summary = {
+    totalCalories: 0,
+    targetCalories: 0,
+    protein: 0,
+    carbs: 0,
+    fats: 0,
+  };
+
+  plans.forEach((plan) => {
+    if (!plan) return;
+
+    summary.totalCalories += plan.totalCalories || 0;
+    summary.targetCalories += plan.targetCalories || 0;
+
+    ['breakfast', 'lunch', 'dinner', 'snack'].forEach((mealTime) => {
+      const meal = plan[mealTime];
+      if (!meal) return;
+      summary.protein += meal.protein || 0;
+      summary.carbs += meal.carbs || 0;
+      summary.fats += meal.fats || 0;
+    });
+  });
+
+  return summary;
+};
+
 export const generateMealPlan = async (req, res) => {
   try {
     const userId = req.user.id;
-    const inputDate = req.body.date ? new Date(req.body.date) : new Date();
+    const { plan, generatedNow } = await buildPlanForDate(userId, req.body.date || new Date());
 
-    // Use LOCAL date components (not UTC) to get correct date for user's timezone
-    const year = inputDate.getFullYear();
-    const month = String(inputDate.getMonth() + 1).padStart(2, '0');
-    const day = String(inputDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`; // "2026-01-21" in local time
-    const date = new Date(dateStr + 'T00:00:00.000Z'); // Store as midnight UTC
-
-    console.log('Local date:', dateStr, 'Stored date:', date.toISOString());
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        data: {},
-        message: 'User not found',
-      });
-    }
-
-    const targetCalories = calculateTargetCalories(user);
-    const planData = generateSimplePlan(targetCalories);
-
-    const existingPlan = await MealPlan.findOne({ userId, date });
-    if (existingPlan) {
+    if (!generatedNow) {
       return res.json({
         success: true,
-        data: existingPlan,
+        data: plan,
         message: 'Meal plan already exists for this date',
       });
     }
 
-    const mealPlan = new MealPlan({
-      userId,
-      date,
-      ...planData,
-    });
-
-    const savedPlan = await mealPlan.save();
-
     return res.json({
       success: true,
-      data: savedPlan,
+      data: plan,
       message: 'Meal plan generated successfully',
     });
   } catch (err) {
@@ -311,8 +400,12 @@ export const getMealLogs = async (req, res) => {
 
 export const getMealPlan = async (req, res) => {
   try {
+    if (req.query.view === 'weekly') {
+      return getWeeklyMealPlan(req, res);
+    }
+
     const userId = req.user.id;
-    const { date } = req.query;
+    const date = normalizePlanDate(req.query.date || new Date());
     const mealPlan = await MealPlan.findOne({ userId, date });
     return res.json({
       success: true,
@@ -324,6 +417,62 @@ export const getMealPlan = async (req, res) => {
       success: false,
       data: {},
       message: err.message || 'Failed to fetch meal plan',
+    });
+  }
+};
+
+export const getWeeklyMealPlan = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const selectedDate = normalizePlanDate(req.query.date || new Date());
+    const { weekStart, weekEnd } = getWeekBounds(selectedDate);
+    const today = normalizePlanDate(new Date());
+    const days = [];
+    const plans = [];
+
+    for (let index = 0; index < 7; index += 1) {
+      const currentDate = new Date(weekStart);
+      currentDate.setUTCDate(weekStart.getUTCDate() + index);
+
+      const { plan, generatedNow } = await buildPlanForDate(userId, currentDate);
+      plans.push(plan);
+      days.push({
+        dayKey: DAY_KEYS[index],
+        dayLabel: DAY_LABELS[index],
+        date: toIsoDate(currentDate),
+        isToday: isSameDate(currentDate, today),
+        generatedNow,
+        plan,
+      });
+    }
+
+    const previousWeekDate = new Date(weekStart);
+    previousWeekDate.setUTCDate(weekStart.getUTCDate() - 7);
+
+    const nextWeekDate = new Date(weekStart);
+    nextWeekDate.setUTCDate(weekStart.getUTCDate() + 7);
+
+    return res.json({
+      success: true,
+      data: {
+        mode: 'weekly',
+        selectedDate: toIsoDate(selectedDate),
+        weekStart: toIsoDate(weekStart),
+        weekEnd: toIsoDate(weekEnd),
+        navigation: {
+          previousWeekDate: toIsoDate(previousWeekDate),
+          nextWeekDate: toIsoDate(nextWeekDate),
+        },
+        days,
+        summary: buildWeeklySummary(plans),
+      },
+      message: 'Weekly meal plan fetched successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to fetch weekly meal plan',
     });
   }
 };
@@ -423,6 +572,104 @@ export const updateMealPlan = async (req, res) => {
   }
 };
 
+export const regenerateMealPlanByMealTime = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { date, mealTime } = req.body;
+
+    const inputDate = new Date(date);
+    const year = inputDate.getFullYear();
+    const month = String(inputDate.getMonth() + 1).padStart(2, '0');
+    const day = String(inputDate.getDate()).padStart(2, '0');
+    const normalizedDate = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+
+    const mealPlan = await MealPlan.findOne({ userId, date: normalizedDate });
+    if (!mealPlan) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal plan not found for this date',
+      });
+    }
+
+    mealPlan[mealTime] = getNextMealVariant(mealTime, mealPlan[mealTime]?.food);
+    recalculateMealPlanTotals(mealPlan);
+    await mealPlan.save();
+
+    return res.json({
+      success: true,
+      data: mealPlan,
+      message: `${mealTime} regenerated successfully`,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to regenerate meal plan',
+    });
+  }
+};
+
+export const deleteMealLog = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { logId } = req.params;
+
+    const deletedLog = await MealLog.findOneAndDelete({ _id: logId, userId });
+    if (!deletedLog) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal log not found',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: deletedLog,
+      message: 'Meal log deleted successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to delete meal log',
+    });
+  }
+};
+
+export const setMealLikeStatus = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { logId } = req.params;
+    const requestedValue = req.body?.isLiked;
+
+    const mealLog = await MealLog.findOne({ _id: logId, userId });
+    if (!mealLog) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal log not found',
+      });
+    }
+
+    mealLog.isLiked = typeof requestedValue === 'boolean' ? requestedValue : !mealLog.isLiked;
+    await mealLog.save();
+
+    return res.json({
+      success: true,
+      data: mealLog,
+      message: `Meal log ${mealLog.isLiked ? 'liked' : 'unliked'} successfully`,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to update meal like status',
+    });
+  }
+};
+
 
 export default {
   generateMealPlan,
@@ -431,7 +678,11 @@ export default {
   getMealLogs,
   getNutritionSummary,
   getMealPlan,
-  updateMealPlan
+  getWeeklyMealPlan,
+  updateMealPlan,
+  regenerateMealPlanByMealTime,
+  deleteMealLog,
+  setMealLikeStatus
 
 };
 

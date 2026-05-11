@@ -12,7 +12,8 @@ const SAMPLE_QUESTS = [
         title: 'Daily Check-in',
         description: 'Log any activity today',
         condition: 'thisWeek.moodLogs >= 1 || thisWeek.workoutLogs >= 1',
-        rewardCoins: 10,
+        rewardCoins: 100,
+        rewardMedals: 2,
         category: 'daily',
         resetPeriod: 'daily',
         isActive: true
@@ -23,7 +24,8 @@ const SAMPLE_QUESTS = [
         title: 'Mood Master Week',
         description: 'Log your mood 5 times this week',
         condition: 'thisWeek.moodLogs >= 5',
-        rewardCoins: 50,
+        rewardCoins: 500,
+        rewardMedals: 5,
         category: 'weekly',
         resetPeriod: 'weekly',
         badge: { name: 'mood_master', icon: 'mood_5' },
@@ -33,9 +35,20 @@ const SAMPLE_QUESTS = [
         title: 'Active Week',
         description: 'Complete 3 workouts this week',
         condition: 'thisWeek.workoutLogs >= 3',
-        rewardCoins: 75,
+        rewardCoins: 500,
+        rewardMedals: 5,
         category: 'weekly',
         resetPeriod: 'weekly',
+        isActive: true
+    },
+    {
+        title: 'Monthly Momentum',
+        description: 'Log at least 20 wellness activities this month',
+        condition: 'totals.moodLogs + totals.workoutLogs + totals.mealLogs + totals.meditationLogs + totals.yogaLogs >= 20',
+        rewardCoins: 2000,
+        rewardMedals: 15,
+        category: 'monthly',
+        resetPeriod: 'monthly',
         isActive: true
     },
 

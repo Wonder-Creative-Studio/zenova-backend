@@ -1,169 +1,206 @@
 // src/services/statsService.js
 import UserStats from '~/models/userStatsModel';
-import { CATEGORY_STAT_MAP } from '~/config/gamification';
 
-/**
- * Update user statistics after an activity
- * @param {ObjectId} userId
- * @param {String} category - Activity type (mood, workout, etc.)
- * @param {Object} data - Activity-specific data
- */
-export const updateStats = async (userId, category, data = {}) => {
-    const statMap = CATEGORY_STAT_MAP[category];
-    if (!statMap) {
-        console.warn(`No stat mapping for category: ${category}`);
-        return;
-    }
+const WEEKLY_FIELDS = [
+  'moodLogs',
+  'workoutLogs',
+  'mealLogs',
+  'meditationLogs',
+  'yogaLogs',
+  'sleepLogs',
+  'stepLogs',
+  'screenTimeLogs',
+  'readingLogs',
+  'medicineLogs',
+  'habitLogs',
+  'menstrualLogs',
+  'bmrLogs',
+  'measurementLogs',
+];
 
-    const updates = { $inc: {} };
-
-    // Increment total count
-    if (statMap.total) {
-        updates.$inc[statMap.total] = 1;
-    }
-
-    // Increment weekly count
-    if (statMap.weekly) {
-        updates.$inc[statMap.weekly] = 1;
-    }
-
-    // Add specific values if provided
-    if (data.steps) {
-        updates.$inc['totals.steps'] = data.steps;
-        updates.$inc['thisWeek.steps'] = data.steps;
-    }
-    if (data.durationMin) {
-        updates.$inc['totals.minutes'] = data.durationMin;
-        updates.$inc['thisWeek.minutes'] = data.durationMin;
-    }
-    if (data.caloriesBurned) {
-        updates.$inc['totals.caloriesBurned'] = data.caloriesBurned;
-        updates.$inc['thisWeek.caloriesBurned'] = data.caloriesBurned;
-    }
-    if (data.coinsEarned) {
-        updates.$inc['totals.coinsEarned'] = data.coinsEarned;
-        updates.$inc['today.coinsEarned'] = data.coinsEarned;
-    }
-
-    await UserStats.findOneAndUpdate(
-        { userId },
-        updates,
-        { upsert: true, new: true }
-    );
+const getWeekStart = (date = new Date()) => {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  value.setDate(value.getDate() - value.getDay());
+  return value;
 };
 
-/**
- * Update streak for a user
- * @param {ObjectId} userId
- * @returns {Object} { current, longest, isNewStreak }
- */
-export const updateStreak = async (userId) => {
-    const stats = await UserStats.findOne({ userId });
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const createDefaultStats = (userId, now = new Date()) => ({
+  userId,
+  totals: {},
+  streaks: { current: 0, longest: 0, novaCurrent: 0, novaLongest: 0 },
+  thisWeek: {
+    weekStart: getWeekStart(now),
+  },
+  today: {
+    date: now,
+    coinsEarned: 0,
+    medalsEarnedStandard: 0,
+    categoriesTracked: [],
+    moodCoins: 0,
+    workoutCoins: 0,
+    mealCoins: 0,
+    snapMealCount: 0,
+  },
+});
 
-    let current = stats?.streaks?.current || 0;
-    let longest = stats?.streaks?.longest || 0;
-    let lastDate = stats?.streaks?.lastActivityDate;
-    let isNewStreak = false;
+const applyWeeklyResetIfNeeded = async (stats, now = new Date()) => {
+  const targetWeekStart = getWeekStart(now);
+  const existingWeekStart = stats.thisWeek?.weekStart ? new Date(stats.thisWeek.weekStart) : null;
 
-    if (!lastDate) {
-        // First activity ever
-        current = 1;
-        isNewStreak = true;
-    } else {
-        const lastActivityDate = new Date(lastDate);
-        const lastDay = new Date(lastActivityDate.getFullYear(), lastActivityDate.getMonth(), lastActivityDate.getDate());
-        const diffDays = Math.floor((today - lastDay) / (24 * 60 * 60 * 1000));
-
-        if (diffDays === 0) {
-            // Same day, no streak change
-            isNewStreak = false;
-        } else if (diffDays === 1) {
-            // Consecutive day
-            current += 1;
-            isNewStreak = true;
-        } else {
-            // Streak broken
-            current = 1;
-            isNewStreak = true;
-        }
-    }
-
-    // Update longest if needed
-    if (current > longest) {
-        longest = current;
-    }
-
-    await UserStats.findOneAndUpdate(
-        { userId },
-        {
-            $set: {
-                'streaks.current': current,
-                'streaks.longest': longest,
-                'streaks.lastActivityDate': now
-            }
-        },
-        { upsert: true }
-    );
-
-    return { current, longest, isNewStreak };
-};
-
-/**
- * Get user stats
- * @param {ObjectId} userId
- */
-export const getStats = async (userId) => {
-    let stats = await UserStats.findOne({ userId });
-
-    if (!stats) {
-        // Create default stats
-        stats = await UserStats.create({
-            userId,
-            totals: {},
-            streaks: { current: 0, longest: 0 },
-            thisWeek: {},
-            today: {}
-        });
-    }
-
-    // Check if we need to reset weekly stats
-    const now = new Date();
-    const lastReset = stats.lastWeeklyReset;
-    if (lastReset) {
-        const daysSinceReset = Math.floor((now - lastReset) / (24 * 60 * 60 * 1000));
-        if (daysSinceReset >= 7) {
-            // Reset weekly stats
-            await UserStats.findOneAndUpdate(
-                { userId },
-                {
-                    $set: {
-                        thisWeek: {},
-                        lastWeeklyReset: now
-                    }
-                }
-            );
-            stats.thisWeek = {};
-        }
-    }
-
+  if (existingWeekStart && existingWeekStart.getTime() === targetWeekStart.getTime()) {
     return stats;
+  }
+
+  const weeklyReset = { 'thisWeek.weekStart': targetWeekStart };
+  WEEKLY_FIELDS.forEach((field) => {
+    weeklyReset[`thisWeek.${field}`] = 0;
+  });
+
+  const updated = await UserStats.findOneAndUpdate(
+    { userId: stats.userId },
+    { $set: weeklyReset },
+    { new: true }
+  );
+  return updated || stats;
 };
 
-/**
- * Reset daily stats (call via cron at midnight)
- */
+export const updateStats = async (userId, category, data = {}) => {
+  const stats = await getStats(userId);
+  const updates = {};
+
+  const increment = (path, amount = 1) => {
+    updates[path] = (updates[path] || 0) + amount;
+  };
+
+  switch (category) {
+    case 'mood':
+      increment('totals.moodLogs');
+      increment('thisWeek.moodLogs');
+      break;
+    case 'workout':
+      increment('totals.workoutLogs');
+      increment('thisWeek.workoutLogs');
+      increment('totals.workoutMinutes', data.durationMin || 0);
+      increment('totals.caloriesBurned', data.caloriesBurned || 0);
+      break;
+    case 'meal':
+      increment('totals.mealLogs');
+      increment('thisWeek.mealLogs');
+      break;
+    case 'meditation':
+      increment('totals.meditationLogs');
+      increment('thisWeek.meditationLogs');
+      increment('totals.meditationMinutes', data.durationMin || 0);
+      break;
+    case 'yoga':
+      increment('totals.yogaLogs');
+      increment('thisWeek.yogaLogs');
+      increment('totals.yogaMinutes', data.durationMin || 0);
+      break;
+    case 'sleep':
+      increment('totals.sleepLogs');
+      increment('thisWeek.sleepLogs');
+      increment('totals.sleepMinutes', data.durationMin || 0);
+      break;
+    case 'steps':
+      increment('totals.stepLogs');
+      increment('thisWeek.stepLogs');
+      increment('totals.steps', data.steps || 0);
+      break;
+    case 'reading':
+      increment('totals.readingLogs');
+      increment('thisWeek.readingLogs');
+      increment('totals.readingMinutes', data.durationMin || 0);
+      break;
+    case 'screen_time':
+      increment('totals.screenTimeLogs');
+      increment('thisWeek.screenTimeLogs');
+      break;
+    case 'habit':
+      increment('totals.habitLogs');
+      increment('thisWeek.habitLogs');
+      increment('totals.habitCompletions', data.completedCount || 0);
+      break;
+    case 'medicine':
+      increment('totals.medicineLogs');
+      increment('thisWeek.medicineLogs');
+      break;
+    case 'menstrual':
+      increment('totals.menstrualLogs');
+      increment('thisWeek.menstrualLogs');
+      break;
+    case 'bmr':
+      increment('totals.bmrLogs');
+      increment('thisWeek.bmrLogs');
+      break;
+    case 'measurement':
+      increment('totals.measurementLogs');
+      increment('thisWeek.measurementLogs');
+      break;
+    default:
+      break;
+  }
+
+  if (data.coinsEarned) {
+    increment('totals.coinsEarned', data.coinsEarned);
+    increment('today.coinsEarned', data.coinsEarned);
+  }
+
+  if (!Object.keys(updates).length) return stats;
+
+  return UserStats.findOneAndUpdate(
+    { userId },
+    {
+      $inc: updates,
+    },
+    { new: true }
+  );
+};
+
+export const updateStreak = async (userId) => {
+  const stats = await getStats(userId);
+  return {
+    current: stats?.streaks?.current || 0,
+    longest: stats?.streaks?.longest || 0,
+    isNewStreak: false,
+  };
+};
+
+export const getStats = async (userId) => {
+  let stats = await UserStats.findOne({ userId });
+
+  if (!stats) {
+    stats = await UserStats.create(createDefaultStats(userId));
+  }
+
+  stats = await applyWeeklyResetIfNeeded(stats);
+  return stats;
+};
+
 export const resetDailyStats = async (userId) => {
-    await UserStats.findOneAndUpdate(
-        { userId },
-        { $set: { today: {} } }
-    );
+  const now = new Date();
+  return UserStats.findOneAndUpdate(
+    { userId },
+    {
+      $set: {
+        'today.date': now,
+        'today.coinsEarned': 0,
+        'today.medalsEarnedStandard': 0,
+        'today.categoriesTracked': [],
+        'today.moodCoins': 0,
+        'today.workoutCoins': 0,
+        'today.mealCoins': 0,
+        'today.snapMealCount': 0,
+      },
+    },
+    { new: true }
+  );
 };
 
 export default {
-    updateStats,
-    updateStreak,
-    getStats,
-    resetDailyStats
+  updateStats,
+  updateStreak,
+  getStats,
+  resetDailyStats,
 };

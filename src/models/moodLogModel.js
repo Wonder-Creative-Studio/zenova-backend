@@ -15,15 +15,20 @@ const moodLogSchema = new mongoose.Schema({
   },
   mood: {
     type: String,
-    enum: ['Very Unpleasant', 'Unpleasant', 'Neutral', 'Pleasant', 'Very Pleasant'],
+    enum: ['Very Unpleasant', 'Unpleasant', 'Neutral', 'Pleasant', 'Slightly Pleasant', 'Very Pleasant'],
     required: true,
   },
   suggestedActivity: {
+    title: { type: String },
+    message: { type: String },
     activity: { type: String },
     type: { type: String },
     durationMin: { type: Number },
     reward: { type: Number },
-    description: { type: String }
+    rewardCoins: { type: Number },
+    description: { type: String },
+    ctaLabel: { type: String },
+    tag: { type: String },
   },
   isSuggestionCompleted: {
     type: Boolean,

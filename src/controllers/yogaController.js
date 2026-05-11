@@ -4,6 +4,7 @@ import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
+import moodSuggestionService from '~/services/moodSuggestionService';
 
 export const logYoga = async (req, res) => {
   try {
@@ -26,6 +27,7 @@ export const logYoga = async (req, res) => {
     });
 
     const savedLog = await yogaLog.save();
+    const { extraCoins } = await moodSuggestionService.completeSuggestionForType(userId, 'yoga');
 
     // Process gamification
     const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
@@ -34,11 +36,13 @@ export const logYoga = async (req, res) => {
       logModel: 'yogaLogs',
       data: { durationMin }
     });
+    gamificationResult.ncEarned = (gamificationResult.ncEarned || 0) + extraCoins;
 
     return res.json({
       success: true,
       data: {
         savedLog,
+        extraCoins,
         ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Yoga session logged successfully',

@@ -2,7 +2,7 @@ import Joi from 'joi';
 
 export const logMood = {
   body: Joi.object().keys({
-    mood: Joi.string().valid('Very Unpleasant', 'Unpleasant', 'Neutral', 'Pleasant', 'Very Pleasant', 'Slightly Pleasant').required(),
+    mood: Joi.string().valid('Very Unpleasant', 'Unpleasant', 'Neutral', 'Pleasant', 'Slightly Pleasant', 'Very Pleasant').required(),
   }),
 };
 

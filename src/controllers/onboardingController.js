@@ -132,7 +132,11 @@ export const saveProfile = async (req, res) => {
           description: 'Welcome bonus: 1000 Nova Coins for completing onboarding',
         });
         // Initialize UserStats for gamification tracking
-        await UserStats.getOrCreate(userId);
+        await UserStats.findOneAndUpdate(
+          { userId },
+          { $inc: { 'totals.coinsEarned': 1000 } },
+          { upsert: true, new: true }
+        );
       } catch (bonusErr) {
         console.error('Onboarding bonus award error:', bonusErr);
         // Don't fail the onboarding if bonus fails

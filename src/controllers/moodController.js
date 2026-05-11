@@ -1,49 +1,7 @@
 // src/controllers/moodController.js
 import MoodLog from '~/models/moodLogModel';
-import User from '~/models/userModel';
-import httpStatus from 'http-status';
-import APIError from '~/utils/apiError';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
-import NovaTransaction from '~/models/novaTransactionModel';
-
-// AI Suggestions Map (Rule-Based MVP)
-const MOOD_SUGGESTIONS = {
-  'Very Unpleasant': {
-    activity: 'Guided Meditation',
-    type: 'meditation',
-    durationMin: 10,
-    reward: 50,
-    description: 'Calm your mind with a soothing meditation.'
-  },
-  'Unpleasant': {
-    activity: 'Yoga Flow',
-    type: 'yoga',
-    durationMin: 15,
-    reward: 40,
-    description: 'Release tension with gentle yoga poses.'
-  },
-  'Neutral': {
-    activity: 'Zen Burn',
-    type: 'workout',
-    durationMin: 20,
-    reward: 30,
-    description: 'Boost your energy with a quick workout.'
-  },
-  'Pleasant': {
-    activity: 'Breathing Exercise',
-    type: 'meditation',
-    durationMin: 5,
-    reward: 20,
-    description: 'Deepen your calm with mindful breathing.'
-  },
-  'Very Pleasant': {
-    activity: 'Gratitude Journal',
-    type: 'manual',
-    durationMin: 5,
-    reward: 20,
-    description: "Reflect on what you're grateful for."
-  }
-};
+import moodSuggestionService from '~/services/moodSuggestionService';
 
 export const logMood = async (req, res) => {
   try {
@@ -76,7 +34,7 @@ export const logMood = async (req, res) => {
       });
     }
 
-    const suggestion = MOOD_SUGGESTIONS[mood] || MOOD_SUGGESTIONS['Neutral'];
+    const suggestion = moodSuggestionService.getSuggestionForMood(mood);
 
     const moodLog = new MoodLog({
       userId,
@@ -98,7 +56,7 @@ export const logMood = async (req, res) => {
       success: true,
       data: {
         savedLog,
-        suggestion,
+        suggestion: moodSuggestionService.buildSuggestionCard(suggestion, savedLog),
         ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Mood logged successfully',
@@ -149,11 +107,14 @@ export const getMoodSummary = async (req, res) => {
 
     const latestLog = logs[logs.length - 1];
     const currentMood = latestLog ? latestLog.mood : 'Neutral';
+    const suggestion = moodSuggestionService.getSuggestionForMood(currentMood);
 
     return res.json({
       success: true,
       data: {
         currentMood,
+        currentEntry: latestLog || null,
+        suggestion: moodSuggestionService.buildSuggestionCard(suggestion, latestLog),
         dailyData,
         period: period || 'weekly',
         startDate: start.toISOString().split('T')[0],
@@ -173,23 +134,16 @@ export const getMoodSummary = async (req, res) => {
 export const getTodayMood = async (req, res) => {
   try {
     const userId = req.user.id;
-    const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const moodLog = await moodSuggestionService.getTodayMoodLog(userId);
+    const currentMood = moodLog?.mood || 'Neutral';
+    const suggestion = moodSuggestionService.getSuggestionForMood(currentMood);
 
-    const moodLog = await MoodLog.findOne({
-      userId,
-      loggedAt: { $gte: start, $lte: end },
-    });
-    const coinEarned = await NovaTransaction.findOne({
-      userId,
-      type: 'mood',
-      logId: moodLog._id,
-    });
     return res.json({
       success: true,
       data: {
         moodLog,
+        currentMood,
+        suggestion: moodSuggestionService.buildSuggestionCard(suggestion, moodLog),
       },
       message: 'Today mood fetched successfully',
     });

@@ -6,6 +6,7 @@ import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
+import moodSuggestionService from '~/services/moodSuggestionService';
 
 // Helper: Calculate calories burned for an exercise
 const calculateExerciseCalories = (durationMin, estimatedBurnPerMin, weightKg = 70) => {
@@ -247,6 +248,7 @@ export const logWorkout = async (req, res) => {
     });
 
     const savedLog = await workoutLog.save();
+    const { extraCoins } = await moodSuggestionService.completeSuggestionForType(userId, 'workout');
 
     // Process gamification
     const gamificationResult = await gamificationServiceV2.processActivityV2(userId, {
@@ -258,11 +260,13 @@ export const logWorkout = async (req, res) => {
         durationMin: totalDurationMin
       }
     });
+    gamificationResult.ncEarned = (gamificationResult.ncEarned || 0) + extraCoins;
 
     return res.json({
       success: true,
       data: {
         savedLog,
+        extraCoins,
         ...gamificationServiceV2.formatGamificationResponse(gamificationResult)
       },
       message: 'Workout logged successfully',

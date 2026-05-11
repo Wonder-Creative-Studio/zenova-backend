@@ -54,6 +54,10 @@ const mealLogSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  isLiked: {
+    type: Boolean,
+    default: false,
+  },
   novaCoinsEarned: {
     type: Number,
     default: 5,
