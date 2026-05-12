@@ -15,7 +15,7 @@ const novaTransactionSchema = new mongoose.Schema({
 
     type: {
         type: String,
-        enum: ['activity_reward', 'quest_bonus', 'streak_bonus', 'badge_bonus',
+        enum: ['activity_reward', 'quest_bonus', 'quest_reward', 'streak_bonus', 'badge_bonus',
             'referral', 'spent', 'refund', 'admin_adjustment', 'onboarding_reward'],
         required: true
     },
@@ -43,6 +43,8 @@ const novaTransactionSchema = new mongoose.Schema({
     // Metadata for complex transactions
     metadata: {
         questId: { type: mongoose.Schema.Types.ObjectId },
+        questCategory: { type: String },
+        questPeriodKey: { type: String },
         badgeId: { type: mongoose.Schema.Types.ObjectId },
         streakDays: { type: Number },
         formula: { type: String },      // "steps/1000", "durationMin/5"

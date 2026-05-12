@@ -16,36 +16,49 @@ const LEGACY_MEDAL_REWARDS = {
 
 const DAILY_CHECK_IN_TITLE = 'Daily Check-in';
 const DAILY_CHECK_IN_CONDITION = 'today.activityCount >= 1';
+const APP_TIME_ZONE = 'Asia/Kolkata';
 
-const startOfDay = (date = new Date()) => {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  return value;
+const getZonedDateParts = (date = new Date(), timeZone = APP_TIME_ZONE) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const getPart = (type) => Number(parts.find(part => part.type === type)?.value);
+  return {
+    year: getPart('year'),
+    month: getPart('month'),
+    day: getPart('day'),
+  };
 };
 
-const startOfWeek = (date = new Date()) => {
-  const value = startOfDay(date);
-  value.setDate(value.getDate() - value.getDay());
-  return value;
+const getZonedDateKey = (date = new Date(), timeZone = APP_TIME_ZONE) => {
+  const { year, month, day } = getZonedDateParts(date, timeZone);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
 
-const startOfMonth = (date = new Date()) => {
-  const value = startOfDay(date);
-  value.setDate(1);
-  return value;
+const addDaysToDateKey = (dateKey, days) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const utcDate = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
+  return utcDate.toISOString().split('T')[0];
 };
 
-const getResetWindowStart = (quest, now = new Date()) => {
-  switch (quest.resetPeriod || quest.category) {
-    case 'daily':
-      return startOfDay(now);
-    case 'weekly':
-      return startOfWeek(now);
-    case 'monthly':
-      return startOfMonth(now);
-    default:
-      return null;
-  }
+const getMondayDateKey = (dateKey) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const daysSinceMonday = (utcDate.getUTCDay() + 6) % 7;
+  return addDaysToDateKey(dateKey, -daysSinceMonday);
+};
+
+const getQuestPeriodKey = (quest, now = new Date()) => {
+  const period = quest.resetPeriod || quest.category;
+  const todayKey = getZonedDateKey(now);
+  if (period === 'daily') return todayKey;
+  if (period === 'weekly') return getMondayDateKey(todayKey);
+  if (period === 'monthly') return todayKey.slice(0, 7);
+  return 'once';
 };
 
 const isQuestCompletedInWindow = (user, quest, now = new Date()) => {
@@ -53,10 +66,19 @@ const isQuestCompletedInWindow = (user, quest, now = new Date()) => {
   const matching = entries.filter((entry) => entry.questId?.toString() === quest._id.toString());
   if (!matching.length) return false;
 
-  const windowStart = getResetWindowStart(quest, now);
-  if (!windowStart) return true;
+  const period = quest.resetPeriod || quest.category;
+  const todayKey = getZonedDateKey(now);
+  const weekStartKey = getMondayDateKey(todayKey);
+  const monthKey = todayKey.slice(0, 7);
 
-  return matching.some((entry) => entry.completedAt && new Date(entry.completedAt) >= windowStart);
+  return matching.some((entry) => {
+    if (!entry.completedAt) return false;
+    const completedKey = getZonedDateKey(new Date(entry.completedAt));
+    if (period === 'daily') return completedKey === todayKey;
+    if (period === 'weekly') return completedKey >= weekStartKey;
+    if (period === 'monthly') return completedKey.startsWith(monthKey);
+    return true;
+  });
 };
 
 const getQuestMedalReward = (quest) => {
@@ -96,6 +118,14 @@ const repairDailyCheckInQuest = async (quest) => {
   quest.rewardMedals = 2;
   quest.description = quest.description || 'Log any activity today';
   await quest.save();
+};
+
+const getQuestConditionMet = (quest, stats, context) => {
+  if (isDailyCheckInQuest(quest)) {
+    return hasDailyActivity(stats);
+  }
+
+  return Boolean(parser.parse(quest.condition).evaluate(context));
 };
 
 const ensureBadge = async (userId, badge = {}) => {
@@ -142,9 +172,7 @@ export const checkQuestCompletion = async (userId, params = {}) => {
 
       let conditionMet = false;
       try {
-        conditionMet = isDailyCheckInQuest(quest)
-          ? hasDailyActivity(stats)
-          : Boolean(parser.parse(quest.condition).evaluate(context));
+        conditionMet = getQuestConditionMet(quest, stats, context);
       } catch (err) {
         console.error(`Quest condition error (ID: ${quest._id}):`, err.message);
         continue;
@@ -154,11 +182,25 @@ export const checkQuestCompletion = async (userId, params = {}) => {
 
       const rewardCoins = quest.rewardCoins || 0;
       const rewardMedals = getQuestMedalReward(quest);
+      const questPeriodKey = getQuestPeriodKey(quest, now);
+      const completionEntry = {
+        questId: quest._id,
+        completedAt: now,
+        category: quest.category,
+        coinsAwarded: rewardCoins,
+        medalsAwarded: rewardMedals,
+      };
 
+      const updatedUser = await User.findById(userId).select('questsCompleted badges medals level rank');
+      if (!updatedUser || isQuestCompletedInWindow(updatedUser, quest, now)) {
+        continue;
+      }
+
+      let coinsAwardedNow = 0;
       if (rewardCoins > 0) {
-        await novaCoinsService.awardCoins(userId, {
+        const coinResult = await novaCoinsService.awardCoins(userId, {
           amount: rewardCoins,
-          type: 'quest_reward',
+          type: 'quest_bonus',
           category: 'quest',
           refId: quest._id,
           refModel: 'quests',
@@ -166,23 +208,23 @@ export const checkQuestCompletion = async (userId, params = {}) => {
           metadata: {
             questId: quest._id.toString(),
             questCategory: quest.category,
+            questPeriodKey,
           },
         });
+        coinsAwardedNow = coinResult?.earned || 0;
       }
-
-      if (rewardMedals > 0) {
-        user.medals = (user.medals || 0) + rewardMedals;
-      }
-
-      user.questsCompleted.push({
-        questId: quest._id,
-        completedAt: now,
-        category: quest.category,
-        coinsAwarded: rewardCoins,
-        medalsAwarded: rewardMedals,
-      });
 
       await ensureBadge(userId, quest.badge);
+
+      if (rewardMedals > 0) {
+        updatedUser.medals = (updatedUser.medals || 0) + rewardMedals;
+      }
+
+      updatedUser.questsCompleted.push(completionEntry);
+      await updatedUser.save();
+
+      user.questsCompleted.push(completionEntry);
+      user.medals = updatedUser.medals;
 
       completedQuests.push({
         questId: quest._id,
@@ -190,15 +232,12 @@ export const checkQuestCompletion = async (userId, params = {}) => {
         title: quest.title,
         description: quest.description,
         category: quest.category,
-        rewardCoins,
+        rewardCoins: coinsAwardedNow,
+        configuredRewardCoins: rewardCoins,
         rewardMedals,
         badge: quest.badge || null,
         completedAt: now,
       });
-    }
-
-    if (completedQuests.length) {
-      await user.save();
     }
 
     return {
@@ -216,11 +255,6 @@ export const checkQuestCompletion = async (userId, params = {}) => {
  * Get user's available quests with completion state.
  */
 export const getUserQuests = async (userId) => {
-  const statsService = require('~/services/statsService').default;
-  const stats = await statsService.getStats(userId);
-  const streakDays = stats?.streaks?.current || 0;
-  await checkQuestCompletion(userId, { stats, streakDays });
-
   const [user, quests] = await Promise.all([
     User.findById(userId).select('questsCompleted'),
     Quest.find({ isActive: true }),

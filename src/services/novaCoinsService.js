@@ -21,6 +21,24 @@ export const awardCoins = async (userId, params) => {
         return { earned: 0, balance: 0 };
     }
 
+    if (category === 'quest' && refId && metadata?.questPeriodKey) {
+        const existingQuestReward = await NovaTransaction.findOne({
+            userId,
+            amount: { $gt: 0 },
+            'source.category': 'quest',
+            'source.refId': refId,
+            'metadata.questPeriodKey': metadata.questPeriodKey,
+        }).sort({ createdAt: -1 });
+
+        if (existingQuestReward) {
+            return {
+                earned: 0,
+                balance: existingQuestReward.balanceAfter,
+                alreadyAwarded: true,
+            };
+        }
+    }
+
     // Atomic increment of user's coins (uses $inc which handles missing fields)
     const user = await User.findByIdAndUpdate(
         userId,

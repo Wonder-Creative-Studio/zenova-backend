@@ -5,13 +5,51 @@ import gamificationService from '~/services/gamificationService';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import novaCoinsService from '~/services/novaCoinsService';
 import statsService from '~/services/statsService';
-import questService from '~/services/questService';
 import NovaTransaction from '~/models/novaTransactionModel';
 import LevelReward from '~/models/levelRewardModel';
 import UserStats from '~/models/userStatsModel';
 import User from '~/models/userModel';
 import Quest from '~/models/questModel';
 import configV2 from '~/config/gamificationV2';
+
+const APP_TIME_ZONE = 'Asia/Kolkata';
+
+const getZonedDateParts = (date = new Date(), timeZone = APP_TIME_ZONE) => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(date);
+
+    const getPart = (type) => Number(parts.find(part => part.type === type)?.value);
+    return {
+        year: getPart('year'),
+        month: getPart('month'),
+        day: getPart('day'),
+    };
+};
+
+const toIsoDateFromParts = ({ year, month, day }) => (
+    `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+);
+
+const getZonedDateKey = (date = new Date(), timeZone = APP_TIME_ZONE) => (
+    toIsoDateFromParts(getZonedDateParts(date, timeZone))
+);
+
+const addDaysToDateKey = (dateKey, days) => {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
+    return utcDate.toISOString().split('T')[0];
+};
+
+const getMondayDateKey = (dateKey) => {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    const daysSinceMonday = (utcDate.getUTCDay() + 6) % 7;
+    return addDaysToDateKey(dateKey, -daysSinceMonday);
+};
 
 // Returns 7-day calendar for the current week (Mon–Sun)
 // A day is "completed" if it falls within the active streak window
@@ -48,13 +86,12 @@ const buildWeekCalendar = (currentStreak, lastActiveDate) => {
     return calendar;
 };
 
-// Pure helper — builds period-aware quest response from already-fetched arrays (no DB calls)
+// Pure helper — builds period-aware quest response from already-fetched arrays (no DB writes)
 const buildQuestResponse = (questsCompleted, allQuests, period) => {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfWeek  = new Date(startOfToday);
-    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay()); // roll back to Sunday
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const todayKey = getZonedDateKey(now);
+    const weekStartKey = getMondayDateKey(todayKey);
+    const monthKey = todayKey.slice(0, 7);
 
     // Latest completedAt per questId (daily/weekly quests accumulate entries across resets)
     const completionMap = new Map();
@@ -69,9 +106,10 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
         const completedAt = completionMap.get(quest._id.toString());
         let isCompleted = false;
         if (completedAt) {
-            if (quest.category === 'daily')       isCompleted = completedAt >= startOfToday;
-            else if (quest.category === 'weekly') isCompleted = completedAt >= startOfWeek;
-            else if (quest.category === 'monthly') isCompleted = completedAt >= startOfMonth;
+            const completedKey = getZonedDateKey(new Date(completedAt));
+            if (quest.category === 'daily')       isCompleted = completedKey === todayKey;
+            else if (quest.category === 'weekly') isCompleted = completedKey >= weekStartKey;
+            else if (quest.category === 'monthly') isCompleted = completedKey.startsWith(monthKey);
             else                                  isCompleted = true; // milestone, special: one-shot
         }
         return {
@@ -84,7 +122,7 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
             badge: quest.badge || null,
             isCompleted,
             completedAt: isCompleted ? completedAt : null,
-            coinsAwarded: isCompleted ? (quest.rewardCoins || 0) : 0
+            coinsAwarded: isCompleted && completedAt ? (quest.rewardCoins || 0) : 0
         };
     });
 
@@ -113,13 +151,27 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
     };
 };
 
-const reconcileQuestState = async (userId, stats) => {
-    if (!stats) return;
+const normalizeQuestPeriod = (value) => {
+    const raw = Array.isArray(value) ? value[0] : value;
+    if (!raw) return undefined;
 
-    await questService.checkQuestCompletion(userId, {
-        stats,
-        streakDays: stats?.streaks?.current || 0,
-    });
+    const normalized = String(raw).trim().toLowerCase().replace(/[^a-z]/g, '');
+    const aliases = {
+        d: 'daily',
+        day: 'daily',
+        daily: 'daily',
+        w: 'weekly',
+        wee: 'weekly',
+        week: 'weekly',
+        weekly: 'weekly',
+        m: 'monthly',
+        month: 'monthly',
+        monthly: 'monthly',
+        milestone: 'milestone',
+        special: 'special',
+    };
+
+    return aliases[normalized] || null;
 };
 
 /**
@@ -237,17 +289,13 @@ export const getEarningsBreakdown = async (req, res) => {
  */
 export const getQuests = async (req, res) => {
     try {
-        const VALID_PERIODS = ['daily', 'weekly', 'monthly', 'milestone', 'special'];
-        const period = req.query.period?.toLowerCase();
-        if (period && !VALID_PERIODS.includes(period)) {
+        const period = normalizeQuestPeriod(req.query.period);
+        if (period === null) {
             return res.status(400).json({
                 success: false, data: {},
                 message: 'Invalid period. Must be one of: daily, weekly, monthly, milestone, special'
             });
         }
-
-        const stats = await UserStats.findOne({ userId: req.user.id }).lean();
-        await reconcileQuestState(req.user.id, stats);
 
         const questFilter = period ? { isActive: true, category: period } : { isActive: true };
         const [user, allQuests] = await Promise.all([
@@ -491,7 +539,15 @@ export const getV2State = async (req, res) => {
         const wantAll = (s) => sections.includes(s);
 
         // ── Parallel DB fetches ───────────────────────────────────────────────
-        const questPeriod = wantAll('quests') ? (req.query.questPeriod?.toLowerCase() || undefined) : undefined;
+        const questPeriod = wantAll('quests') ? normalizeQuestPeriod(req.query.questPeriod) : undefined;
+        if (questPeriod === null) {
+            return res.status(400).json({
+                success: false,
+                data: {},
+                message: 'Invalid questPeriod. Must be one of: daily, weekly, monthly, milestone, special',
+            });
+        }
+
         const questFilter = wantAll('quests')
             ? (questPeriod ? { isActive: true, category: questPeriod } : { isActive: true })
             : null;
@@ -513,14 +569,6 @@ export const getV2State = async (req, res) => {
 
         if (!user && (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap') || wantAll('quests'))) {
             throw new APIError('User not found', httpStatus.NOT_FOUND);
-        }
-
-        if (wantAll('quests')) {
-            await reconcileQuestState(userId, stats);
-            [user, stats] = await Promise.all([
-                User.findById(userId).select('name email profilePicture novaCoins medals level rank questsCompleted').lean(),
-                UserStats.findOne({ userId }).lean(),
-            ]);
         }
 
         // ── Resolve level & rank data from config ─────────────────────────────
@@ -859,28 +907,23 @@ export const getQuestJourney = async (req, res) => {
 
         const totalQuests = allQuests.length;
 
-        const todayDate = new Date();
-        todayDate.setHours(0, 0, 0, 0);
-
         // Window: last 7 days (Day 0 = 6 days ago, Day 6 = today)
         const WINDOW = 7;
-        const windowStart = new Date(todayDate.getTime() - (WINDOW - 1) * 86400000);
+        const todayKey = getZonedDateKey();
+        const windowStartKey = addDaysToDateKey(todayKey, -(WINDOW - 1));
 
         // Build a map: dateString (YYYY-MM-DD) → count of quest completions that day
         const completionsByDate = new Map();
         for (const entry of (user.questsCompleted || [])) {
             if (!entry.completedAt) continue;
-            const d = new Date(entry.completedAt);
-            d.setHours(0, 0, 0, 0);
-            if (d < windowStart) continue; // outside the 7-day window
-            const dateStr = d.toISOString().split('T')[0];
+            const dateStr = getZonedDateKey(new Date(entry.completedAt));
+            if (dateStr < windowStartKey || dateStr > todayKey) continue; // outside the 7-day window
             completionsByDate.set(dateStr, (completionsByDate.get(dateStr) || 0) + 1);
         }
 
         const journey = [];
         for (let i = 0; i < WINDOW; i++) {
-            const day = new Date(windowStart.getTime() + i * 86400000);
-            const dateStr = day.toISOString().split('T')[0];
+            const dateStr = addDaysToDateKey(windowStartKey, i);
             const questsCompleted = completionsByDate.get(dateStr) || 0;
             journey.push({
                 day: i,
@@ -888,7 +931,7 @@ export const getQuestJourney = async (req, res) => {
                 questsCompleted,
                 totalQuests,
                 allCompleted: totalQuests > 0 && questsCompleted >= totalQuests,
-                isToday: day.getTime() === todayDate.getTime(),
+                isToday: dateStr === todayKey,
             });
         }
 
