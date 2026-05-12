@@ -35,6 +35,7 @@ const ALLOWED_ORIGINS = [
 	config.ADMIN_URL,
 ].filter(Boolean);
 
+
 app.use(cors({
 	origin: (origin, cb) => {
 		// Allow requests with no origin (e.g. mobile apps, curl, Postman)
