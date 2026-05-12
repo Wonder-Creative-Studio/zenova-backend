@@ -5,6 +5,7 @@ import gamificationService from '~/services/gamificationService';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import novaCoinsService from '~/services/novaCoinsService';
 import statsService from '~/services/statsService';
+import questService from '~/services/questService';
 import NovaTransaction from '~/models/novaTransactionModel';
 import LevelReward from '~/models/levelRewardModel';
 import UserStats from '~/models/userStatsModel';
@@ -110,6 +111,15 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
         total,                                          // legacy compat
         completedCount                                  // legacy compat
     };
+};
+
+const reconcileQuestState = async (userId, stats) => {
+    if (!stats) return;
+
+    await questService.checkQuestCompletion(userId, {
+        stats,
+        streakDays: stats?.streaks?.current || 0,
+    });
 };
 
 /**
@@ -235,6 +245,9 @@ export const getQuests = async (req, res) => {
                 message: 'Invalid period. Must be one of: daily, weekly, monthly, milestone, special'
             });
         }
+
+        const stats = await UserStats.findOne({ userId: req.user.id }).lean();
+        await reconcileQuestState(req.user.id, stats);
 
         const questFilter = period ? { isActive: true, category: period } : { isActive: true };
         const [user, allQuests] = await Promise.all([
@@ -483,11 +496,11 @@ export const getV2State = async (req, res) => {
             ? (questPeriod ? { isActive: true, category: questPeriod } : { isActive: true })
             : null;
 
-        const [user, stats, rewards, allQuests] = await Promise.all([
+        let [user, stats, rewards, allQuests] = await Promise.all([
             (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap') || wantAll('quests'))
                 ? User.findById(userId).select('name email profilePicture novaCoins medals level rank questsCompleted').lean()
                 : Promise.resolve(null),
-            (wantAll('streaks') || wantAll('today') || wantAll('medals'))
+            (wantAll('streaks') || wantAll('today') || wantAll('medals') || wantAll('quests'))
                 ? UserStats.findOne({ userId }).lean()
                 : Promise.resolve(null),
             wantAll('rewards')
@@ -500,6 +513,14 @@ export const getV2State = async (req, res) => {
 
         if (!user && (wantAll('profile') || wantAll('medals') || wantAll('rank') || wantAll('levelMap') || wantAll('quests'))) {
             throw new APIError('User not found', httpStatus.NOT_FOUND);
+        }
+
+        if (wantAll('quests')) {
+            await reconcileQuestState(userId, stats);
+            [user, stats] = await Promise.all([
+                User.findById(userId).select('name email profilePicture novaCoins medals level rank questsCompleted').lean(),
+                UserStats.findOne({ userId }).lean(),
+            ]);
         }
 
         // ── Resolve level & rank data from config ─────────────────────────────
@@ -608,6 +629,7 @@ export const getV2State = async (req, res) => {
                 date: stats?.today?.date || null,
                 coinsEarned: stats?.today?.coinsEarned || 0,
                 medalsEarnedStandard: stats?.today?.medalsEarnedStandard || 0,
+                activityCount: stats?.today?.activityCount || 0,
                 categoriesTracked: stats?.today?.categoriesTracked || [],
                 allCategoriesComplete: (
                     (stats?.today?.categoriesTracked || []).includes('move') &&

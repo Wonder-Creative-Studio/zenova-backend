@@ -16,6 +16,7 @@ const WEEKLY_FIELDS = [
   'menstrualLogs',
   'bmrLogs',
   'measurementLogs',
+  'activityCount',
 ];
 
 const getWeekStart = (date = new Date()) => {
@@ -31,6 +32,7 @@ const createDefaultStats = (userId, now = new Date()) => ({
   streaks: { current: 0, longest: 0, novaCurrent: 0, novaLongest: 0 },
   thisWeek: {
     weekStart: getWeekStart(now),
+    activityCount: 0,
   },
   today: {
     date: now,
@@ -41,6 +43,7 @@ const createDefaultStats = (userId, now = new Date()) => ({
     workoutCoins: 0,
     mealCoins: 0,
     snapMealCount: 0,
+    activityCount: 0,
   },
 });
 
@@ -142,6 +145,12 @@ export const updateStats = async (userId, category, data = {}) => {
       break;
   }
 
+  if (Object.keys(updates).some((path) => path.startsWith('totals.') && path !== 'totals.coinsEarned')) {
+    increment('totals.activityCount');
+    increment('today.activityCount');
+    increment('thisWeek.activityCount');
+  }
+
   if (data.coinsEarned) {
     increment('totals.coinsEarned', data.coinsEarned);
     increment('today.coinsEarned', data.coinsEarned);
@@ -192,6 +201,7 @@ export const resetDailyStats = async (userId) => {
         'today.workoutCoins': 0,
         'today.mealCoins': 0,
         'today.snapMealCount': 0,
+        'today.activityCount': 0,
       },
     },
     { new: true }

@@ -1,11 +1,29 @@
 import Permission from '~/models/permissionModel';
 import Role from '~/models/roleModel';
 import User from '~/models/userModel';
+import Quest from '~/models/questModel';
 import logger from './logger';
 
 
 async function initialData() {
 	try {
+		await Quest.updateMany(
+			{
+				title: 'Daily Check-in',
+				category: 'daily',
+				condition: { $ne: 'today.activityCount >= 1' },
+			},
+			{
+				$set: {
+					condition: 'today.activityCount >= 1',
+					rewardCoins: 100,
+					rewardMedals: 2,
+					resetPeriod: 'daily',
+					isActive: true,
+				},
+			}
+		);
+
 		const countPermissions = await Permission.estimatedDocumentCount();
 		if (countPermissions === 0) {
 			await Permission.create(

@@ -14,6 +14,9 @@ const LEGACY_MEDAL_REWARDS = {
   monthly: 15,
 };
 
+const DAILY_CHECK_IN_TITLE = 'Daily Check-in';
+const DAILY_CHECK_IN_CONDITION = 'today.activityCount >= 1';
+
 const startOfDay = (date = new Date()) => {
   const value = new Date(date);
   value.setHours(0, 0, 0, 0);
@@ -63,6 +66,38 @@ const getQuestMedalReward = (quest) => {
   return LEGACY_MEDAL_REWARDS[quest.category] || 0;
 };
 
+const isDailyCheckInQuest = (quest) => quest?.category === 'daily' && quest?.title === DAILY_CHECK_IN_TITLE;
+
+const hasDailyActivity = (stats = {}) => {
+  const today = stats?.today || {};
+  return Boolean(
+    (today.activityCount || 0) > 0 ||
+    (today.categoriesTracked || []).length > 0 ||
+    (today.medalsEarnedStandard || 0) > 0 ||
+    (today.coinsEarned || 0) > 0
+  );
+};
+
+const repairDailyCheckInQuest = async (quest) => {
+  if (!isDailyCheckInQuest(quest)) return;
+
+  const needsRepair = (
+    quest.condition !== DAILY_CHECK_IN_CONDITION ||
+    quest.resetPeriod !== 'daily' ||
+    quest.rewardCoins !== 100 ||
+    quest.rewardMedals !== 2
+  );
+
+  if (!needsRepair) return;
+
+  quest.condition = DAILY_CHECK_IN_CONDITION;
+  quest.resetPeriod = 'daily';
+  quest.rewardCoins = 100;
+  quest.rewardMedals = 2;
+  quest.description = quest.description || 'Log any activity today';
+  await quest.save();
+};
+
 const ensureBadge = async (userId, badge = {}) => {
   if (!badge?.name) return;
 
@@ -102,11 +137,14 @@ export const checkQuestCompletion = async (userId, params = {}) => {
 
     for (const quest of quests) {
       if (quest.expiresAt && new Date(quest.expiresAt) < now) continue;
+      await repairDailyCheckInQuest(quest);
       if (isQuestCompletedInWindow(user, quest, now)) continue;
 
       let conditionMet = false;
       try {
-        conditionMet = Boolean(parser.parse(quest.condition).evaluate(context));
+        conditionMet = isDailyCheckInQuest(quest)
+          ? hasDailyActivity(stats)
+          : Boolean(parser.parse(quest.condition).evaluate(context));
       } catch (err) {
         console.error(`Quest condition error (ID: ${quest._id}):`, err.message);
         continue;
@@ -179,13 +217,14 @@ export const checkQuestCompletion = async (userId, params = {}) => {
  */
 export const getUserQuests = async (userId) => {
   const statsService = require('~/services/statsService').default;
+  const stats = await statsService.getStats(userId);
+  const streakDays = stats?.streaks?.current || 0;
+  await checkQuestCompletion(userId, { stats, streakDays });
+
   const [user, quests] = await Promise.all([
     User.findById(userId).select('questsCompleted'),
     Quest.find({ isActive: true }),
   ]);
-  const stats = await statsService.getStats(userId);
-  const streakDays = stats?.streaks?.current || 0;
-  buildContext(stats, streakDays);
 
   return quests.map((quest) => ({
     id: quest._id,
@@ -212,7 +251,10 @@ function buildContext(stats, streakDays) {
       novaLongest: stats?.streaks?.novaLongest || 0,
     },
     thisWeek: stats?.thisWeek || {},
-    today: stats?.today || {},
+    today: {
+      ...(stats?.today || {}),
+      hasActivity: hasDailyActivity(stats),
+    },
     streakDays: streakDays || stats?.streaks?.current || 0,
     mealLogs: stats?.totals?.mealLogs || 0,
     workoutLogs: stats?.totals?.workoutLogs || 0,
@@ -225,6 +267,9 @@ function buildContext(stats, streakDays) {
     readingLogs: stats?.totals?.readingLogs || 0,
     habitLogs: stats?.totals?.habitLogs || 0,
     stepLogs: stats?.totals?.stepLogs || 0,
+    activityCount: stats?.totals?.activityCount || 0,
+    todayActivityCount: stats?.today?.activityCount || 0,
+    weeklyActivityCount: stats?.thisWeek?.activityCount || 0,
     totalNovaCoins: stats?.totals?.coinsEarned || 0,
   };
 }

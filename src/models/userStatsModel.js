@@ -34,6 +34,7 @@ const userStatsSchema = new mongoose.Schema({
         readingLogs: { type: Number, default: 0 },
         readingMinutes: { type: Number, default: 0 },
         measurementLogs: { type: Number, default: 0 },
+        activityCount: { type: Number, default: 0 },
         coinsEarned: { type: Number, default: 0 },
         coinsSpent: { type: Number, default: 0 },
     },
@@ -67,6 +68,7 @@ const userStatsSchema = new mongoose.Schema({
         menstrualLogs: { type: Number, default: 0 },
         bmrLogs: { type: Number, default: 0 },
         measurementLogs: { type: Number, default: 0 },
+        activityCount: { type: Number, default: 0 },
     },
 
     // Daily tracking for caps
@@ -79,6 +81,7 @@ const userStatsSchema = new mongoose.Schema({
         workoutCoins: { type: Number, default: 0 },
         mealCoins: { type: Number, default: 0 },
         snapMealCount: { type: Number, default: 0 },
+        activityCount: { type: Number, default: 0 },
     }
 
 }, { timestamps: true });
@@ -126,6 +129,7 @@ userStatsSchema.statics.resetWeeklyStats = async function () {
                 'thisWeek.menstrualLogs': 0,
                 'thisWeek.bmrLogs': 0,
                 'thisWeek.measurementLogs': 0,
+                'thisWeek.activityCount': 0,
             }
         }
     );
@@ -146,6 +150,7 @@ userStatsSchema.statics.resetDailyStats = async function () {
                 'today.workoutCoins': 0,
                 'today.mealCoins': 0,
                 'today.snapMealCount': 0,
+                'today.activityCount': 0,
             }
         }
     );

@@ -121,6 +121,7 @@ const ensurePeriodicResets = (stats, now = new Date()) => {
         stats.today.workoutCoins = 0;
         stats.today.mealCoins = 0;
         stats.today.snapMealCount = 0;
+        stats.today.activityCount = 0;
     }
 
     const weekStart = getWeekStart(now);
@@ -141,6 +142,7 @@ const ensurePeriodicResets = (stats, now = new Date()) => {
         stats.thisWeek.menstrualLogs = 0;
         stats.thisWeek.bmrLogs = 0;
         stats.thisWeek.measurementLogs = 0;
+        stats.thisWeek.activityCount = 0;
     }
 
 };
@@ -151,6 +153,9 @@ const incrementActivityStats = (stats, type, data = {}) => {
 
     if (mapping.totalCount) {
         stats.totals[mapping.totalCount] = (stats.totals[mapping.totalCount] || 0) + 1;
+        stats.totals.activityCount = (stats.totals.activityCount || 0) + 1;
+        stats.today.activityCount = (stats.today.activityCount || 0) + 1;
+        stats.thisWeek.activityCount = (stats.thisWeek.activityCount || 0) + 1;
     }
 
     if (mapping.weeklyCount) {

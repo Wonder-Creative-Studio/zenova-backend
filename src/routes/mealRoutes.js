@@ -18,6 +18,8 @@ router.get('/plan/weekly', authenticate(), validate(mealValidation.getWeeklyMeal
 router.get('/get-meal-plan', authenticate(), validate(mealValidation.getMealPlan), catchAsync(mealController.getMealPlan));
 router.put('/update-meal-plan', authenticate(), validate(mealValidation.updateMealPlan), catchAsync(mealController.updateMealPlan));
 router.post('/plan/regenerate', authenticate(), validate(mealValidation.regenerateMealPlanByMealTime), catchAsync(mealController.regenerateMealPlanByMealTime));
+router.patch('/plan/:planId/items/:mealTime/like', authenticate(), validate(mealValidation.setMealPlanItemLikeStatus), catchAsync(mealController.setMealPlanItemLikeStatus));
+router.delete('/plan/:planId/items/:mealTime', authenticate(), validate(mealValidation.mealPlanItemParam), catchAsync(mealController.deleteMealPlanItem));
 router.delete('/logs/:logId', authenticate(), validate(mealValidation.mealLogIdParam), catchAsync(mealController.deleteMealLog));
 router.patch('/logs/:logId/like', authenticate(), validate(mealValidation.setMealLikeStatus), catchAsync(mealController.setMealLikeStatus));
 

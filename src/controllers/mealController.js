@@ -86,10 +86,22 @@ const getMealVariants = () => ({
 const recalculateMealPlanTotals = (mealPlan) => {
   const entries = ['breakfast', 'lunch', 'dinner', 'snack']
     .map((mealTime) => mealPlan[mealTime])
-    .filter(Boolean);
+    .filter(item => item && !item.isDeleted);
 
   mealPlan.totalCalories = entries.reduce((sum, item) => sum + (item.calories || 0), 0);
   return mealPlan;
+};
+
+const serializeMealPlan = (mealPlan) => {
+  if (!mealPlan) return null;
+
+  const output = typeof mealPlan.toObject === 'function' ? mealPlan.toObject() : { ...mealPlan };
+  ['breakfast', 'lunch', 'dinner', 'snack'].forEach((mealTime) => {
+    if (output[mealTime]?.isDeleted) {
+      output[mealTime] = null;
+    }
+  });
+  return output;
 };
 
 const getNextMealVariant = (mealTime, currentFood) => {
@@ -143,7 +155,7 @@ const buildWeeklySummary = (plans) => {
 
     ['breakfast', 'lunch', 'dinner', 'snack'].forEach((mealTime) => {
       const meal = plan[mealTime];
-      if (!meal) return;
+      if (!meal || meal.isDeleted) return;
       summary.protein += meal.protein || 0;
       summary.carbs += meal.carbs || 0;
       summary.fats += meal.fats || 0;
@@ -161,14 +173,14 @@ export const generateMealPlan = async (req, res) => {
     if (!generatedNow) {
       return res.json({
         success: true,
-        data: plan,
+        data: serializeMealPlan(plan),
         message: 'Meal plan already exists for this date',
       });
     }
 
     return res.json({
       success: true,
-      data: plan,
+      data: serializeMealPlan(plan),
       message: 'Meal plan generated successfully',
     });
   } catch (err) {
@@ -289,11 +301,11 @@ export const generateGroceryList = async (req, res) => {
 
     // Map meal items to grocery items (simplified)
     const allFoods = [
-      mealPlan.breakfast.food,
-      mealPlan.lunch.food,
-      mealPlan.dinner.food,
-      mealPlan.snack.food,
-    ];
+      mealPlan.breakfast,
+      mealPlan.lunch,
+      mealPlan.dinner,
+      mealPlan.snack,
+    ].filter(meal => meal && !meal.isDeleted).map(meal => meal.food);
 
     // Basic parsing: "Oats + Banana" → ["Oats", "Banana"]
     const groceryItems = [];
@@ -409,7 +421,7 @@ export const getMealPlan = async (req, res) => {
     const mealPlan = await MealPlan.findOne({ userId, date });
     return res.json({
       success: true,
-      data: mealPlan,
+      data: serializeMealPlan(mealPlan),
       message: 'Meal plan fetched successfully',
     });
   } catch (err) {
@@ -442,7 +454,7 @@ export const getWeeklyMealPlan = async (req, res) => {
         date: toIsoDate(currentDate),
         isToday: isSameDate(currentDate, today),
         generatedNow,
-        plan,
+        plan: serializeMealPlan(plan),
       });
     }
 
@@ -560,7 +572,7 @@ export const updateMealPlan = async (req, res) => {
 
     return res.json({
       success: true,
-      data: updatedMealPlan,
+      data: serializeMealPlan(updatedMealPlan),
       message: 'Meal plan updated successfully',
     });
   } catch (err) {
@@ -592,13 +604,18 @@ export const regenerateMealPlanByMealTime = async (req, res) => {
       });
     }
 
-    mealPlan[mealTime] = getNextMealVariant(mealTime, mealPlan[mealTime]?.food);
+    mealPlan[mealTime] = {
+      ...getNextMealVariant(mealTime, mealPlan[mealTime]?.food),
+      isLiked: false,
+      isDeleted: false,
+      deletedAt: null,
+    };
     recalculateMealPlanTotals(mealPlan);
     await mealPlan.save();
 
     return res.json({
       success: true,
-      data: mealPlan,
+      data: serializeMealPlan(mealPlan),
       message: `${mealTime} regenerated successfully`,
     });
   } catch (err) {
@@ -606,6 +623,97 @@ export const regenerateMealPlanByMealTime = async (req, res) => {
       success: false,
       data: {},
       message: err.message || 'Failed to regenerate meal plan',
+    });
+  }
+};
+
+export const setMealPlanItemLikeStatus = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { planId, mealTime } = req.params;
+    const requestedValue = req.body?.isLiked;
+
+    const mealPlan = await MealPlan.findOne({ _id: planId, userId });
+    if (!mealPlan) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal plan not found',
+      });
+    }
+
+    if (!mealPlan[mealTime] || mealPlan[mealTime].isDeleted) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: `${mealTime} meal is not available in this plan`,
+      });
+    }
+
+    mealPlan[mealTime].isLiked = typeof requestedValue === 'boolean' ? requestedValue : !mealPlan[mealTime].isLiked;
+    await mealPlan.save();
+
+    return res.json({
+      success: true,
+      data: {
+        planId: mealPlan._id,
+        mealTime,
+        isLiked: mealPlan[mealTime].isLiked,
+        plan: serializeMealPlan(mealPlan),
+      },
+      message: `Meal plan item ${mealPlan[mealTime].isLiked ? 'liked' : 'unliked'} successfully`,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to update meal plan item like status',
+    });
+  }
+};
+
+export const deleteMealPlanItem = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { planId, mealTime } = req.params;
+
+    const mealPlan = await MealPlan.findOne({ _id: planId, userId });
+    if (!mealPlan) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal plan not found',
+      });
+    }
+
+    if (!mealPlan[mealTime] || mealPlan[mealTime].isDeleted) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: `${mealTime} meal is not available in this plan`,
+      });
+    }
+
+    mealPlan[mealTime].isDeleted = true;
+    mealPlan[mealTime].isLiked = false;
+    mealPlan[mealTime].deletedAt = new Date();
+    recalculateMealPlanTotals(mealPlan);
+    await mealPlan.save();
+
+    return res.json({
+      success: true,
+      data: {
+        planId: mealPlan._id,
+        mealTime,
+        plan: serializeMealPlan(mealPlan),
+      },
+      message: 'Meal plan item deleted successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to delete meal plan item',
     });
   }
 };
@@ -681,6 +789,8 @@ export default {
   getWeeklyMealPlan,
   updateMealPlan,
   regenerateMealPlanByMealTime,
+  setMealPlanItemLikeStatus,
+  deleteMealPlanItem,
   deleteMealLog,
   setMealLikeStatus
 

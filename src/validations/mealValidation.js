@@ -121,6 +121,23 @@ export const setMealLikeStatus = {
   }),
 };
 
+export const mealPlanItemParam = {
+  params: Joi.object().keys({
+    planId: Joi.string().hex().length(24).required(),
+    mealTime: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').required(),
+  }),
+};
+
+export const setMealPlanItemLikeStatus = {
+  params: Joi.object().keys({
+    planId: Joi.string().hex().length(24).required(),
+    mealTime: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').required(),
+  }),
+  body: Joi.object().keys({
+    isLiked: Joi.boolean().optional(),
+  }),
+};
+
 export default {
   generateMealPlan,
   logMeal,
@@ -133,4 +150,6 @@ export default {
   regenerateMealPlanByMealTime,
   mealLogIdParam,
   setMealLikeStatus,
+  mealPlanItemParam,
+  setMealPlanItemLikeStatus,
 };

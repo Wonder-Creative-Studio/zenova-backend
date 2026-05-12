@@ -11,7 +11,7 @@ const SAMPLE_QUESTS = [
     {
         title: 'Daily Check-in',
         description: 'Log any activity today',
-        condition: 'thisWeek.moodLogs >= 1 || thisWeek.workoutLogs >= 1',
+        condition: 'today.activityCount >= 1',
         rewardCoins: 100,
         rewardMedals: 2,
         category: 'daily',

@@ -26,6 +26,18 @@ const mealItemSchema = new mongoose.Schema({
     required: true,
     min: 0,
   },
+  isLiked: {
+    type: Boolean,
+    default: false,
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  },
+  deletedAt: {
+    type: Date,
+    default: null,
+  },
 }, { _id: false });
 
 const mealPlanSchema = new mongoose.Schema({
