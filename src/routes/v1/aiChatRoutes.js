@@ -1,5 +1,6 @@
 // src/routes/v1/aiChatRoutes.js
 import { Router } from 'express';
+import multer from 'multer';
 import catchAsync from '~/utils/catchAsync';
 import validate from '~/middlewares/validate';
 import authenticate from '~/middlewares/authenticate';
@@ -8,12 +9,23 @@ import aiChatController from '~/controllers/v1/aiChatController';
 import aiChatValidation from '~/validations/v1/aiChatValidation';
 
 const router = Router();
+const upload = multer({
+	storage: multer.memoryStorage(),
+	limits: {
+		fileSize: 25 * 1024 * 1024,
+		files: 6,
+	},
+});
 
 // Send message (SSE by default, JSON with ?nostream=1)
 router.post(
 	'/message',
 	authenticate(),
 	chatLimiter,
+	upload.fields([
+		{ name: 'attachments', maxCount: 5 },
+		{ name: 'audio', maxCount: 1 },
+	]),
 	validate(aiChatValidation.sendMessage),
 	catchAsync(aiChatController.sendMessage)
 );

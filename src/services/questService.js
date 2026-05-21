@@ -186,6 +186,7 @@ export const checkQuestCompletion = async (userId, params = {}) => {
       const completionEntry = {
         questId: quest._id,
         completedAt: now,
+        questPeriodKey,
         category: quest.category,
         coinsAwarded: rewardCoins,
         medalsAwarded: rewardMedals,
@@ -237,6 +238,7 @@ export const checkQuestCompletion = async (userId, params = {}) => {
         rewardMedals,
         badge: quest.badge || null,
         completedAt: now,
+        questPeriodKey,
       });
     }
 

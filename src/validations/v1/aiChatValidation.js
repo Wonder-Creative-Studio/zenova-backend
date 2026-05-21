@@ -7,7 +7,7 @@ export const sendMessage = {
 	body: Joi.object().keys({
 		agent: Joi.string().valid('calia', 'noura', 'aeron').default('calia'),
 		thread_id: Joi.alternatives().try(objectId, Joi.valid(null)).optional(),
-		message: Joi.string().trim().min(1).max(4000).required(),
+		message: Joi.string().trim().max(4000).allow('', null).optional(),
 		client_msg_id: Joi.string().max(64).optional().allow('', null),
 	}),
 	query: Joi.object().keys({

@@ -3,6 +3,7 @@
 import aiChatService from '~/services/ai/aiChatService';
 import ChatThread from '~/models/chatThreadModel';
 import ChatMessage from '~/models/chatMessageModel';
+import chatAttachmentService from '~/services/ai/chatAttachmentService';
 import logger from '~/config/logger';
 
 /**
@@ -11,7 +12,8 @@ import logger from '~/config/logger';
  */
 export const sendMessage = async (req, res) => {
 	const userId = req.user.id;
-	const { agent = 'calia', thread_id = null, message, client_msg_id = null } = req.body || {};
+	const { agent = 'calia', thread_id = null, message = '', client_msg_id = null } = req.body || {};
+	const files = req.files || {};
 
 	const wantsJson =
 		req.query?.nostream === '1' ||
@@ -25,15 +27,19 @@ export const sendMessage = async (req, res) => {
 				threadId: thread_id,
 				message,
 				clientMsgId: client_msg_id,
+				files,
 			});
 			return res.json({
 				success: true,
 				data: {
 					thread_id: out.threadId,
+					user_message_id: out.userMessageId,
 					message_id: out.messageId,
 					message: out.content,
 					agent,
 					safety_flags: out.safetyFlags,
+					attachments: out.attachments || [],
+					transcript: out.transcript || '',
 				},
 				message: 'Message sent successfully',
 			});
@@ -66,7 +72,7 @@ export const sendMessage = async (req, res) => {
 
 	try {
 		await aiChatService.streamMessage(
-			{ userId, agent, threadId: thread_id, message, clientMsgId: client_msg_id },
+			{ userId, agent, threadId: thread_id, message, clientMsgId: client_msg_id, files },
 			res
 		);
 	} catch (err) {
@@ -142,15 +148,17 @@ export const listMessages = async (req, res) => {
 			.limit(Math.min(parseInt(limit, 10) || 50, 200))
 			.lean();
 
-		const messages = rows
+		const messages = await Promise.all(rows
 			.reverse()
-			.map((m) => ({
-				id: m._id,
-				role: m.role,
-				content: m.content,
-				safety_flags: m.safetyFlags || [],
-				created_at: m.createdAt,
-			}));
+			.map(async (m) => ({
+					id: m._id,
+					role: m.role,
+					content: m.content,
+					safety_flags: m.safetyFlags || [],
+					attachments: await chatAttachmentService.signAttachmentsForClient(m.attachments || []),
+					transcript: (m.attachments || []).find((attachment) => attachment.kind === 'audio')?.transcript || '',
+					created_at: m.createdAt,
+				})));
 
 		return res.json({
 			success: true,

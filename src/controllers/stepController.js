@@ -4,6 +4,7 @@ import User from '~/models/userModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
+import { emitAuraUpdate } from '~/services/auraEventBus';
 
 // Helper: Calculate calories burned
 const calculateCaloriesBurned = (steps, weightKg = 70) => {
@@ -100,6 +101,8 @@ export const logSteps = async (req, res) => {
       logModel: 'stepLogs',
       data: { steps }
     });
+
+    emitAuraUpdate(userId);
 
     return res.json({
       success: true,

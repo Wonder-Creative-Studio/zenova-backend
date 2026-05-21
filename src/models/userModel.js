@@ -142,6 +142,7 @@ const userSchema = new mongoose.Schema(
         ref: 'quests',
       },
       completedAt: Date,
+      questPeriodKey: String,
       category: String,
       coinsAwarded: {
         type: Number,

@@ -2,6 +2,7 @@
 import MoodLog from '~/models/moodLogModel';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import moodSuggestionService from '~/services/moodSuggestionService';
+import { emitAuraUpdate } from '~/services/auraEventBus';
 
 export const logMood = async (req, res) => {
   try {
@@ -51,6 +52,8 @@ export const logMood = async (req, res) => {
       logModel: 'moodLogs',
       data: { mood }
     });
+
+    emitAuraUpdate(userId);
 
     return res.json({
       success: true,

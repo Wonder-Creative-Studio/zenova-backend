@@ -5,6 +5,7 @@ import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import SleepGoal from '~/models/sleepGoalModel';
+import { emitAuraUpdate } from '~/services/auraEventBus';
 
 export const setSleepGoal = async (req, res) => {
   try {
@@ -79,6 +80,8 @@ export const logSleep = async (req, res) => {
       logModel: 'sleepLogs',
       data: { durationHr: durationMin / 60, quality }
     });
+
+    emitAuraUpdate(userId);
 
     return res.json({
       success: true,

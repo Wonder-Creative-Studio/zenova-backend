@@ -38,6 +38,33 @@ const getZonedDateKey = (date = new Date(), timeZone = APP_TIME_ZONE) => (
     toIsoDateFromParts(getZonedDateParts(date, timeZone))
 );
 
+const getZonedTimeString = (date = new Date(), timeZone = APP_TIME_ZONE) => (
+    new Intl.DateTimeFormat('en-IN', {
+        timeZone,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    }).format(date)
+);
+
+const decorateTransactionForClient = (transaction) => {
+    const output = typeof transaction.toObject === 'function' ? transaction.toObject() : { ...transaction };
+    const createdAt = output.createdAt ? new Date(output.createdAt) : null;
+    const updatedAt = output.updatedAt ? new Date(output.updatedAt) : null;
+
+    return {
+        ...output,
+        displayDate: createdAt ? getZonedDateKey(createdAt) : null,
+        displayTime: createdAt ? getZonedTimeString(createdAt) : null,
+        displayTimeZone: APP_TIME_ZONE,
+        createdAtLocalDate: createdAt ? getZonedDateKey(createdAt) : null,
+        createdAtLocalTime: createdAt ? getZonedTimeString(createdAt) : null,
+        updatedAtLocalDate: updatedAt ? getZonedDateKey(updatedAt) : null,
+        updatedAtLocalTime: updatedAt ? getZonedTimeString(updatedAt) : null,
+    };
+};
+
 const addDaysToDateKey = (dateKey, days) => {
     const [year, month, day] = dateKey.split('-').map(Number);
     const utcDate = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
@@ -99,11 +126,12 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
         const key = entry.questId?.toString();
         if (!key) continue;
         const existing = completionMap.get(key);
-        if (!existing || entry.completedAt > existing) completionMap.set(key, entry.completedAt);
+        if (!existing || entry.completedAt > existing.completedAt) completionMap.set(key, entry);
     }
 
     const enriched = allQuests.map(quest => {
-        const completedAt = completionMap.get(quest._id.toString());
+        const completionEntry = completionMap.get(quest._id.toString());
+        const completedAt = completionEntry?.completedAt;
         let isCompleted = false;
         if (completedAt) {
             const completedKey = getZonedDateKey(new Date(completedAt));
@@ -122,6 +150,10 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
             badge: quest.badge || null,
             isCompleted,
             completedAt: isCompleted ? completedAt : null,
+            completedDate: isCompleted && completedAt ? getZonedDateKey(new Date(completedAt)) : null,
+            completedTime: isCompleted && completedAt ? getZonedTimeString(new Date(completedAt)) : null,
+            completedTimeZone: APP_TIME_ZONE,
+            questPeriodKey: isCompleted ? completionEntry?.questPeriodKey || null : null,
             coinsAwarded: isCompleted && completedAt ? (quest.rewardCoins || 0) : 0
         };
     });
@@ -227,21 +259,34 @@ export const getCoinsBalance = async (req, res) => {
 export const getCoinsHistory = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { page = 1, limit = 20, category } = req.query;
+        const { page = 1, limit = 20 } = req.query;
+        let { category, type } = req.query;
+
+        const transactionTypes = ['activity_reward', 'quest_bonus', 'quest_reward', 'streak_bonus', 'badge_bonus',
+            'referral', 'spent', 'refund', 'admin_adjustment', 'onboarding_reward'];
+
+        // Backward-friendly: if the app sends category=quest_bonus, treat it as a transaction type.
+        if (!type && transactionTypes.includes(category)) {
+            type = category;
+            category = undefined;
+        }
 
         const history = await novaCoinsService.getHistory(userId, {
             page: parseInt(page),
             limit: parseInt(limit),
-            category
+            category,
+            type,
         });
 
-        // Get total count
-        const totalCount = await NovaTransaction.countDocuments({ userId });
+        const countQuery = { userId };
+        if (category) countQuery['source.category'] = category;
+        if (type) countQuery.type = type;
+        const totalCount = await NovaTransaction.countDocuments(countQuery);
 
         return res.json({
             success: true,
             data: {
-                transactions: history,
+                transactions: history.map(decorateTransactionForClient),
                 pagination: {
                     page: parseInt(page),
                     limit: parseInt(limit),

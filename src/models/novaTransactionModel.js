@@ -61,10 +61,13 @@ novaTransactionSchema.index({ 'source.refId': 1 });
 
 // Static method to get user's transaction history
 novaTransactionSchema.statics.getHistory = function (userId, options = {}) {
-    const { limit = 20, page = 1, category } = options;
+    const { limit = 20, page = 1, category, type } = options;
     const query = { userId };
     if (category) {
         query['source.category'] = category;
+    }
+    if (type) {
+        query.type = type;
     }
     return this.find(query)
         .sort({ createdAt: -1 })

@@ -7,6 +7,7 @@ import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import moodSuggestionService from '~/services/moodSuggestionService';
+import { emitAuraUpdate } from '~/services/auraEventBus';
 
 // Helper: Calculate calories burned for an exercise
 const calculateExerciseCalories = (durationMin, estimatedBurnPerMin, weightKg = 70) => {
@@ -261,6 +262,8 @@ export const logWorkout = async (req, res) => {
       }
     });
     gamificationResult.ncEarned = (gamificationResult.ncEarned || 0) + extraCoins;
+
+    emitAuraUpdate(userId);
 
     return res.json({
       success: true,

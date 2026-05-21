@@ -22,6 +22,8 @@ import habitRoutes from './habitRoutes'
 import readingRoutes from './readingRoutes';
 import measurementRoutes from './measurementRoutes';
 import gamificationRoutes from './gamificationRoutes';
+import hydrationRoutes from './hydrationRoutes';
+import auraRoutes from './auraRoutes';
 import adminRoutes from './admin';
 import v1Routes from './v1';
 
@@ -53,7 +55,8 @@ router.use('/habit', habitRoutes);
 router.use('/reading', readingRoutes);
 router.use('/measurement', measurementRoutes);
 router.use('/gamification', gamificationRoutes);
+router.use('/hydration', hydrationRoutes);
+router.use('/aura', auraRoutes);
 router.use('/v1', v1Routes);
 
 export default router;
-

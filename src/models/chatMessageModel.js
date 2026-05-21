@@ -47,6 +47,21 @@ const chatMessageSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    attachments: [{
+      kind: {
+        type: String,
+        enum: ['image', 'document', 'audio'],
+      },
+      originalName: String,
+      mimeType: String,
+      size: Number,
+      s3Key: String,
+      urlExpiresAt: Date,
+      transcript: String,
+      extractedText: String,
+      hasExtractedText: Boolean,
+      providerMeta: mongoose.Schema.Types.Mixed,
+    }],
     clientMsgId: { // Added from main for message tracking
       type: String,
       default: null,

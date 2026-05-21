@@ -7,6 +7,7 @@ import FoodCatalog from '~/models/foodCatalogModel';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
+import { emitAuraUpdate } from '~/services/auraEventBus';
 
 // Helper: Calculate target calories based on user profile
 const calculateTargetCalories = (user) => {
@@ -251,6 +252,8 @@ export const logMeal = async (req, res) => {
       logModel: 'mealLogs',
       data: { calories, protein, carbs, fats }
     });
+
+    emitAuraUpdate(userId);
 
     return res.json({
       success: true,
