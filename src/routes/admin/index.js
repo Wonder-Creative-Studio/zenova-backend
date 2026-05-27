@@ -12,6 +12,7 @@ import gamificationRoutes from './gamificationRoutes';
 import questRoutes from './questRoutes';
 import roleRoutes from './roleRoutes';
 import systemRoutes from './systemRoutes';
+import trainerGreetingRoutes from './trainerGreetingRoutes';
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use('/gamification', gamificationRoutes);
 router.use('/quests', questRoutes);
 router.use('/roles', roleRoutes);
 router.use('/system', systemRoutes);
+router.use('/trainer-greetings', trainerGreetingRoutes);
 
 export default router;

@@ -38,6 +38,13 @@ router.get(
 	catchAsync(aiChatController.greeting)
 );
 
+// Get all dynamic trainer greeting cards
+router.get(
+	'/trainer-greetings',
+	authenticate(),
+	catchAsync(aiChatController.getTrainerGreetings)
+);
+
 // List threads
 router.get(
 	'/threads',

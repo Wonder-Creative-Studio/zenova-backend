@@ -4,6 +4,7 @@ import aiChatService from '~/services/ai/aiChatService';
 import ChatThread from '~/models/chatThreadModel';
 import ChatMessage from '~/models/chatMessageModel';
 import chatAttachmentService from '~/services/ai/chatAttachmentService';
+import TrainerGreeting from '~/models/trainerGreetingModel';
 import logger from '~/config/logger';
 
 /**
@@ -222,10 +223,32 @@ export const greeting = async (req, res) => {
 	}
 };
 
+/**
+ * GET /api/v1/chat/trainer-greetings
+ * Fetches all active trainer greeting card messages.
+ */
+export const getTrainerGreetings = async (req, res) => {
+	try {
+		const items = await TrainerGreeting.find({ isActive: true }).select('agent displayName cardMessage').lean();
+		return res.json({
+			success: true,
+			data: items.map((item) => ({
+				agent: item.agent,
+				display_name: item.displayName,
+				card_message: item.cardMessage,
+			})),
+			message: 'Trainer greetings fetched successfully',
+		});
+	} catch (err) {
+		return res.status(400).json({ success: false, data: {}, message: err.message });
+	}
+};
+
 export default {
 	sendMessage,
 	listThreads,
 	listMessages,
 	deleteThread,
 	greeting,
+	getTrainerGreetings,
 };

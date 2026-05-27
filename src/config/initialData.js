@@ -2,6 +2,7 @@ import Permission from '~/models/permissionModel';
 import Role from '~/models/roleModel';
 import User from '~/models/userModel';
 import Quest from '~/models/questModel';
+import TrainerGreeting from '~/models/trainerGreetingModel';
 import logger from './logger';
 
 
@@ -157,6 +158,30 @@ async function initialData() {
 					roles: [roleInstructor]
 				}
 			);
+		}
+
+		const countTrainerGreetings = await TrainerGreeting.estimatedDocumentCount();
+		if (countTrainerGreetings === 0) {
+			await TrainerGreeting.create([
+				{
+					agent: 'calia',
+					displayName: 'Calia',
+					cardMessage: 'Ready to build a healthy and sustainable diet plan today?',
+					isActive: true,
+				},
+				{
+					agent: 'noura',
+					displayName: 'Noura',
+					cardMessage: "Let's find your inner calm and peace together.",
+					isActive: true,
+				},
+				{
+					agent: 'aeron',
+					displayName: 'Aeron',
+					cardMessage: 'Ready to crush your daily workouts and move?',
+					isActive: true,
+				},
+			]);
 		}
 	} catch (err) {
 		logger.error(err);
