@@ -3,6 +3,7 @@ import User from '../models/userModel';
 import { generateAndStoreOtp } from '../utils/otp.js';
 import { sendOtpEmail } from '~/services/emailService/index.js';
 import tokenService from '~/services/tokenService';
+import config from '~/config/config';
 import { nanoid } from 'nanoid';
 import { normalizeLocation } from '~/utils/location';
 
@@ -178,15 +179,18 @@ export const verifyOtp = async (req, res, next) => {
     const tokens = await tokenService.generateAuthTokens(user);
 
     const isNewUser = !user.isOnboarded;
-    const options = {
-      httpOnly: false,
-      secure: false,
-      maxAge: 24 * 60 * 60 * 1000,
-    };
+    const isProd = config.NODE_ENV === 'production';
+    const baseOpts = { httpOnly: true, secure: isProd, sameSite: 'lax' };
 
     return res
-      .cookie('refreshToken', tokens.refreshToken.token, options)
-      .cookie('accessToken', tokens.accessToken.token, options)
+      .cookie('refreshToken', tokens.refreshToken.token, {
+        ...baseOpts,
+        maxAge: config.REFRESH_TOKEN_EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
+      })
+      .cookie('accessToken', tokens.accessToken.token, {
+        ...baseOpts,
+        maxAge: config.JWT_ACCESS_TOKEN_EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
+      })
       .json({
         success: true,
         data: {

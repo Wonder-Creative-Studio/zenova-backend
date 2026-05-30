@@ -13,16 +13,16 @@ export const generateRandomToken = async (length = 66) => {
 	return random;
 };
 
-// export const verifyToken = async (token, type) => {
-// 	const tokenDoc = await Token.findOne({ token, type, blacklisted: false });
-// 	if (!tokenDoc) {
-// 		throw new APIError('Token not found', httpStatus.UNAUTHORIZED);
-// 	}
-// 	if (moment(tokenDoc.expiresAt).format() < moment().format()) {
-// 		throw new APIError('Token expires', httpStatus.UNAUTHORIZED);
-// 	}
-// 	return tokenDoc;
-// };
+export const verifyToken = async (token, type) => {
+	const tokenDoc = await Token.findOne({ token, type, blacklisted: false });
+	if (!tokenDoc) {
+		throw new APIError('Token not found', httpStatus.UNAUTHORIZED);
+	}
+	if (moment(tokenDoc.expiresAt).isBefore(moment())) {
+		throw new APIError('Token expired', httpStatus.UNAUTHORIZED);
+	}
+	return tokenDoc;
+};
 
 export const generateAuthTokens = async (user) => {
 	
@@ -109,8 +109,10 @@ export const generateAuthTokens = async (user) => {
 // }; 
 
 export default {
-generateAuthTokens,
-}	 
+	generateAuthTokens,
+	generateRandomToken,
+	verifyToken,
+};
 
 
 

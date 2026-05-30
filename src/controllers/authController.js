@@ -162,17 +162,18 @@ export const signin = async (req, res) => {
     user = user.toObject();
     user.roles = user.roles?.[0]?.name || 'User';
 
-    const options = {
-      httpOnly: false,
-      secure: false,
-      maxAge: 24 * 60 * 60 * 1000
-
-
-    }
+    const isProd = config.NODE_ENV === 'production';
+    const baseOpts = { httpOnly: true, secure: isProd, sameSite: 'lax' };
 
     return res
-      .cookie("accessToken", tokens.accessToken.token, options)
-      .cookie("refreshToken", tokens.refreshToken.token, options)
+      .cookie('accessToken', tokens.accessToken.token, {
+        ...baseOpts,
+        maxAge: config.JWT_ACCESS_TOKEN_EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
+      })
+      .cookie('refreshToken', tokens.refreshToken.token, {
+        ...baseOpts,
+        maxAge: config.REFRESH_TOKEN_EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
+      })
       .json({
         success: true,
         data: { user, tokens },
@@ -271,8 +272,21 @@ export const signout = async (req, res) => {
 
 export const refreshTokens = async (req, res) => {
   try {
+    const incomingRefreshToken =
+      req.body?.refreshToken ||
+      req.cookies?.refreshToken ||
+      req.headers.authorization?.split(' ')[1];
+
+    if (!incomingRefreshToken) {
+      return res.status(401).json({
+        success: false,
+        data: {},
+        message: 'Refresh token missing'
+      });
+    }
+
     const refreshTokenDoc = await tokenService.verifyToken(
-      req.body.refreshToken,
+      incomingRefreshToken,
       config.TOKEN_TYPES.REFRESH
     );
     const user = await User.getUserById(refreshTokenDoc.user);
@@ -284,14 +298,26 @@ export const refreshTokens = async (req, res) => {
       });
     }
 
-    await refreshTokenDoc.remove();
+    await Token.deleteOne({ _id: refreshTokenDoc._id });
     const tokens = await tokenService.generateAuthTokens(user);
 
-    return res.json({
-      success: true,
-      data: { tokens },
-      message: 'Tokens refreshed successfully'
-    });
+    const isProd = config.NODE_ENV === 'production';
+    const baseOpts = { httpOnly: true, secure: isProd, sameSite: 'lax' };
+
+    return res
+      .cookie('accessToken', tokens.accessToken.token, {
+        ...baseOpts,
+        maxAge: config.JWT_ACCESS_TOKEN_EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
+      })
+      .cookie('refreshToken', tokens.refreshToken.token, {
+        ...baseOpts,
+        maxAge: config.REFRESH_TOKEN_EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
+      })
+      .json({
+        success: true,
+        data: { tokens },
+        message: 'Tokens refreshed successfully'
+      });
   } catch (err) {
     return res.status(401).json({
       success: false,
