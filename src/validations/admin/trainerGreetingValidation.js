@@ -6,8 +6,8 @@ const objectId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 export const create = {
 	body: Joi.object().keys({
 		agent: Joi.string().min(2).max(50).lowercase().required(),
-		displayName: Joi.string().min(2).max(16).required(),
-		cardMessage: Joi.string().min(2).max(16).required(),
+		displayName: Joi.string().min(2).max(30).required(),
+		cardMessage: Joi.string().min(2).max(30).required(),
 		isActive: Joi.boolean().optional(),
 	}),
 };
@@ -18,8 +18,8 @@ export const update = {
 	}),
 	body: Joi.object().keys({
 		agent: Joi.string().min(2).max(50).lowercase().optional(),
-		displayName: Joi.string().min(2).max(16).optional(),
-		cardMessage: Joi.string().min(2).max(16).optional(),
+		displayName: Joi.string().min(2).max(30).optional(),
+		cardMessage: Joi.string().min(2).max(30).optional(),
 		isActive: Joi.boolean().optional(),
 	}),
 };
