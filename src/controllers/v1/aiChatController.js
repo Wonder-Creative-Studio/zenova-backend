@@ -236,6 +236,8 @@ export const getTrainerGreetings = async (req, res) => {
 				agent: item.agent,
 				display_name: item.displayName,
 				card_message: item.cardMessage,
+				card_message_length: item.cardMessage ? item.cardMessage.length : 0,
+				display_name_length: item.displayName ? item.displayName.length : 0,
 			})),
 			message: 'Trainer greetings fetched successfully',
 		});

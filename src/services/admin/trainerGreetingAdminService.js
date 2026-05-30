@@ -16,6 +16,8 @@ export const list = async (query = {}) => {
 			agent: item.agent,
 			display_name: item.displayName,
 			card_message: item.cardMessage,
+			card_message_length: item.cardMessage ? item.cardMessage.length : 0,
+			display_name_length: item.displayName ? item.displayName.length : 0,
 			is_active: item.isActive,
 			created_at: item.createdAt,
 			updated_at: item.updatedAt,
@@ -24,6 +26,12 @@ export const list = async (query = {}) => {
 };
 
 export const create = async (body) => {
+	// Enforce limit of 16 trainer greetings (characters)
+	const count = await TrainerGreeting.countDocuments();
+	if (count >= 16) {
+		throw new APIError('Cannot add more than 16 trainer greetings.', httpStatus.BAD_REQUEST);
+	}
+
 	// Check if an entry for this agent already exists
 	const existing = await TrainerGreeting.findOne({ agent: body.agent });
 	if (existing) {
@@ -36,7 +44,10 @@ export const create = async (body) => {
 		cardMessage: body.cardMessage,
 		isActive: body.isActive !== undefined ? body.isActive : true,
 	});
-	return item.toObject();
+	const obj = item.toObject();
+	obj.card_message_length = obj.cardMessage ? obj.cardMessage.length : 0;
+	obj.display_name_length = obj.displayName ? obj.displayName.length : 0;
+	return obj;
 };
 
 export const update = async (id, body) => {
@@ -60,6 +71,8 @@ export const update = async (id, body) => {
 	if (!updated) {
 		throw new APIError('Trainer greeting configuration not found', httpStatus.NOT_FOUND);
 	}
+	updated.card_message_length = updated.cardMessage ? updated.cardMessage.length : 0;
+	updated.display_name_length = updated.displayName ? updated.displayName.length : 0;
 	return updated;
 };
 
