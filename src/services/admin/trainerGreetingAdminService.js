@@ -32,6 +32,13 @@ export const create = async (body) => {
 		throw new APIError('Cannot add more than 16 trainer greetings.', httpStatus.BAD_REQUEST);
 	}
 
+	if (body.displayName && body.displayName.length > 16) {
+		throw new APIError('Display name cannot be longer than 16 characters.', httpStatus.BAD_REQUEST);
+	}
+	if (body.cardMessage && body.cardMessage.length > 16) {
+		throw new APIError('Card message cannot be longer than 16 characters.', httpStatus.BAD_REQUEST);
+	}
+
 	// Check if an entry for this agent already exists
 	const existing = await TrainerGreeting.findOne({ agent: body.agent });
 	if (existing) {
@@ -57,6 +64,13 @@ export const update = async (id, body) => {
 		if (body[k] !== undefined) {
 			patch[k] = body[k];
 		}
+	}
+
+	if (patch.displayName && patch.displayName.length > 16) {
+		throw new APIError('Display name cannot be longer than 16 characters.', httpStatus.BAD_REQUEST);
+	}
+	if (patch.cardMessage && patch.cardMessage.length > 16) {
+		throw new APIError('Card message cannot be longer than 16 characters.', httpStatus.BAD_REQUEST);
 	}
 
 	// If agent is changing, verify uniqueness
