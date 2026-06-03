@@ -90,10 +90,10 @@ const mealItemSchema = Joi.object().keys({
 export const updateMealPlan = {
   body: Joi.object().keys({
     date: Joi.date().required(),
-    breakfast: mealItemSchema.optional(),
-    lunch: mealItemSchema.optional(),
-    dinner: mealItemSchema.optional(),
-    snack: mealItemSchema.optional(),
+    breakfast: mealItemSchema.optional().allow(null),
+    lunch: mealItemSchema.optional().allow(null),
+    dinner: mealItemSchema.optional().allow(null),
+    snack: mealItemSchema.optional().allow(null),
     totalCalories: Joi.number().min(0).optional(),
     targetCalories: Joi.number().min(0).optional(),
   }),
@@ -138,6 +138,14 @@ export const setMealPlanItemLikeStatus = {
   }),
 };
 
+export const getLikedMeals = {
+  query: Joi.object().keys({
+    source: Joi.string().valid('plans', 'logs', 'all').optional().default('all'),
+    page: Joi.number().integer().min(1).optional().default(1),
+    limit: Joi.number().integer().min(1).max(50).optional().default(20),
+  }),
+};
+
 export default {
   generateMealPlan,
   logMeal,
@@ -152,4 +160,5 @@ export default {
   setMealLikeStatus,
   mealPlanItemParam,
   setMealPlanItemLikeStatus,
+  getLikedMeals,
 };

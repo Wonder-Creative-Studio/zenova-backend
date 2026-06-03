@@ -782,6 +782,68 @@ export const setMealLikeStatus = async (req, res) => {
 };
 
 
+export const getLikedMeals = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { source = 'all', page = 1, limit = 20 } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+    const pageLimit = Number(limit);
+
+    const result = { likedPlanItems: [], likedLogs: [], total: 0 };
+
+    // Liked items from meal plans
+    if (source === 'all' || source === 'plans') {
+      const mealPlans = await MealPlan.find({ userId }).sort({ date: -1 });
+
+      const likedPlanItems = [];
+      for (const plan of mealPlans) {
+        for (const mealTime of ['breakfast', 'lunch', 'dinner', 'snack']) {
+          const item = plan[mealTime];
+          if (item && !item.isDeleted && item.isLiked) {
+            likedPlanItems.push({
+              planId: plan._id,
+              date: plan.date,
+              mealTime,
+              food: item.food,
+              calories: item.calories,
+              protein: item.protein,
+              carbs: item.carbs,
+              fats: item.fats,
+              source: 'plan',
+            });
+          }
+        }
+      }
+      result.likedPlanItems = likedPlanItems;
+    }
+
+    // Liked items from meal logs
+    if (source === 'all' || source === 'logs') {
+      const likedLogs = await MealLog.find({ userId, isLiked: true })
+        .sort({ loggedAt: -1 })
+        .skip(source === 'logs' ? skip : 0)
+        .limit(source === 'logs' ? pageLimit : pageLimit);
+
+      result.likedLogs = likedLogs;
+    }
+
+    result.total = result.likedPlanItems.length + result.likedLogs.length;
+
+    return res.json({
+      success: true,
+      data: result,
+      message: 'Liked meals fetched successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to fetch liked meals',
+    });
+  }
+};
+
+
 export default {
   generateMealPlan,
   logMeal,
@@ -795,9 +857,11 @@ export default {
   setMealPlanItemLikeStatus,
   deleteMealPlanItem,
   deleteMealLog,
-  setMealLikeStatus
+  setMealLikeStatus,
+  getLikedMeals,
 
 };
+
 
 // src/controllers/mealController.js
 // import httpStatus from 'http-status';
