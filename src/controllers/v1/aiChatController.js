@@ -229,16 +229,30 @@ export const greeting = async (req, res) => {
  */
 export const getTrainerGreetings = async (req, res) => {
 	try {
-		const items = await TrainerGreeting.find({ isActive: true }).select('agent displayName cardMessage').lean();
+		const items = await TrainerGreeting.find({ isActive: true }).select('agent displayName cardMessage weeklyCardMessages').lean();
+		const day = new Date().getDay();
+		const dayIndex = day === 0 ? 6 : day - 1;
+
 		return res.json({
 			success: true,
-			data: items.map((item) => ({
-				agent: item.agent,
-				display_name: item.displayName,
-				card_message: item.cardMessage,
-				card_message_length: item.cardMessage ? item.cardMessage.length : 0,
-				display_name_length: item.displayName ? item.displayName.length : 0,
-			})),
+			data: items.map((item) => {
+				let cardMessage = item.cardMessage;
+				if (Array.isArray(item.weeklyCardMessages) && item.weeklyCardMessages.length === 7) {
+					const weeklyMsg = item.weeklyCardMessages[dayIndex];
+					if (weeklyMsg && weeklyMsg.trim() !== '') {
+						cardMessage = weeklyMsg;
+					}
+				}
+				return {
+					agent: item.agent,
+					display_name: item.displayName,
+					card_message: cardMessage,
+					card_message_length: cardMessage ? cardMessage.length : 0,
+					display_name_length: item.displayName ? item.displayName.length : 0,
+					weekly_card_messages: item.weeklyCardMessages || [],
+					weekly_card_messages_lengths: (item.weeklyCardMessages || []).map(m => m ? m.length : 0),
+				};
+			}),
 			message: 'Trainer greetings fetched successfully',
 		});
 	} catch (err) {

@@ -17,6 +17,10 @@ const trainerGreetingSchema = new mongoose.Schema(
 			type: String,
 			required: true,
 		},
+		weeklyCardMessages: {
+			type: [String],
+			default: [],
+		},
 		isActive: {
 			type: Boolean,
 			default: true,
