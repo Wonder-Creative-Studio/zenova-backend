@@ -1,0 +1,309 @@
+{
+	"info": {
+		"_postman_id": "8bf62cd5-728b-4a5f-ab27-5d2de8b7c7b8",
+		"name": "Zenova Meal & AI Chat Greetings API",
+		"description": "Postman Collection for Zenova backend endpoints covering:\n1. Favoriting meals & getting liked meals\n2. Regenerating/Redoing a meal plan item\n3. AI static greetings & dynamic trainer card greetings (with single/7-day weekly messages)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Meal Management",
+			"item": [
+				{
+					"name": "Get Favorite/Liked Meals",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/favorites?source=all&page=1&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"favorites"
+							],
+							"query": [
+								{
+									"key": "source",
+									"value": "all",
+									"description": "Source of liked meals: 'all', 'plans', or 'logs'"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Fetches a user's liked meal plan items and liked manual meal logs."
+					},
+					"response": []
+				},
+				{
+					"name": "Like / Favorite Meal Plan Item",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"isLiked\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/:planId/items/:mealTime/like",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								":planId",
+								"items",
+								":mealTime",
+								"like"
+							],
+							"variable": [
+								{
+									"key": "planId",
+									"value": "665f8e3f9a721c0017a0b3f5",
+									"description": "The ID of the meal plan"
+								},
+								{
+									"key": "mealTime",
+									"value": "breakfast",
+									"description": "One of: breakfast, lunch, dinner, snack"
+								}
+							]
+						},
+						"description": "Likes or unlikes a specific meal item within an active meal plan."
+					},
+					"response": []
+				},
+				{
+					"name": "Like / Favorite Meal Log",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"isLiked\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/logs/:logId/like",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"logs",
+								":logId",
+								"like"
+							],
+							"variable": [
+								{
+									"key": "logId",
+									"value": "665f8e3f9a721c0017a0b3f9",
+									"description": "The ID of the specific logged meal entry"
+								}
+							]
+						},
+						"description": "Likes or unlikes a specific meal log entry."
+					},
+					"response": []
+				},
+				{
+					"name": "Redo / Regenerate Meal Item",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2026-06-04\",\n    \"mealTime\": \"breakfast\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/regenerate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								"regenerate"
+							]
+						},
+						"description": "Regenerates/Redoes a single meal time item (e.g. breakfast) for a specific date, cycling through available variants."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "AI & Chat Greetings",
+			"item": [
+				{
+					"name": "Get Static AI Greeting",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/chat/greeting?agent=calia",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"chat",
+								"greeting"
+							],
+							"query": [
+								{
+									"key": "agent",
+									"value": "calia",
+									"description": "AI Agent companion: 'calia', 'noura', or 'aeron'"
+								}
+							]
+						},
+						"description": "Returns a static, deterministic greeting message tailored for the user (using their first name) when a new thread is opened."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Trainer greetings (Dynamic & Weekly)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/chat/trainer-greetings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"chat",
+								"trainer-greetings"
+							]
+						},
+						"description": "Returns the active trainer greeting cards. Support both single-day custom card messages and 7-day weekly schedule messages depending on the current day of the week."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "your_jwt_auth_token_here",
+			"type": "string"
+		}
+	]
+}

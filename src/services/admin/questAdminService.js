@@ -87,4 +87,10 @@ export const completions = async (questId, { limit = 50 } = {}) => {
 	});
 };
 
-export default { list, create, update, setActive, completions };
+export const remove = async (id) => {
+	const deleted = await Quest.findByIdAndDelete(id).lean();
+	if (!deleted) throw new APIError('Quest not found', httpStatus.NOT_FOUND);
+	return deleted;
+};
+
+export default { list, create, update, setActive, completions, remove };

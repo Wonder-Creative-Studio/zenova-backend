@@ -38,6 +38,14 @@ router.patch(
 	catchAsync(questController.toggle)
 );
 
+router.delete(
+	'/:questId',
+	authorize('Super Administrator', 'Administrator'),
+	validate(questValidation.byId),
+	auditLog({ action: 'quest.delete', targetModel: 'quests', targetIdFrom: 'params.questId' }),
+	catchAsync(questController.remove)
+);
+
 router.get(
 	'/:questId/completions',
 	validate(questValidation.byId),

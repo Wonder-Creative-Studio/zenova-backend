@@ -51,4 +51,12 @@ export const completions = async (req, res) => {
 	}
 };
 
-export default { list, create, update, toggle, completions };
+export const remove = async (req, res) => {
+	try {
+		return ok(res, { quest: await svc.remove(req.params.questId) }, 'Quest deleted');
+	} catch (err) {
+		return fail(res, err);
+	}
+};
+
+export default { list, create, update, toggle, completions, remove };
