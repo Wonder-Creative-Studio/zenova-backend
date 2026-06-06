@@ -30,6 +30,10 @@ const mealItemSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  isDisliked: {
+    type: Boolean,
+    default: false,
+  },
   isDeleted: {
     type: Boolean,
     default: false,

@@ -20,8 +20,12 @@ router.put('/update-meal-plan', authenticate(), validate(mealValidation.updateMe
 router.post('/plan/regenerate', authenticate(), validate(mealValidation.regenerateMealPlanByMealTime), catchAsync(mealController.regenerateMealPlanByMealTime));
 router.get('/favorites', authenticate(), validate(mealValidation.getLikedMeals), catchAsync(mealController.getLikedMeals));
 router.patch('/plan/:planId/items/:mealTime/like', authenticate(), validate(mealValidation.setMealPlanItemLikeStatus), catchAsync(mealController.setMealPlanItemLikeStatus));
+router.patch('/plan/:planId/items/:mealTime/dislike', authenticate(), validate(mealValidation.dislikeMealPlanItem), catchAsync(mealController.dislikeMealPlanItem));
+router.post('/plan/:planId/items/:mealTime/undo-delete', authenticate(), validate(mealValidation.undoDeleteMealPlanItem), catchAsync(mealController.undoDeleteMealPlanItem));
+router.get('/plan/:planId/items/:mealTime/alternatives', authenticate(), validate(mealValidation.getSuggestedAlternatives), catchAsync(mealController.getSuggestedAlternatives));
 router.delete('/plan/:planId/items/:mealTime', authenticate(), validate(mealValidation.mealPlanItemParam), catchAsync(mealController.deleteMealPlanItem));
 router.delete('/logs/:logId', authenticate(), validate(mealValidation.mealLogIdParam), catchAsync(mealController.deleteMealLog));
 router.patch('/logs/:logId/like', authenticate(), validate(mealValidation.setMealLikeStatus), catchAsync(mealController.setMealLikeStatus));
+router.patch('/logs/:logId/dislike', authenticate(), validate(mealValidation.dislikeMealLog), catchAsync(mealController.dislikeMealLog));
 
 export default router;

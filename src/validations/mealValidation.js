@@ -146,6 +146,39 @@ export const getLikedMeals = {
   }),
 };
 
+export const dislikeMealPlanItem = {
+  params: Joi.object().keys({
+    planId: Joi.string().hex().length(24).required(),
+    mealTime: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').required(),
+  }),
+  body: Joi.object().keys({
+    isDisliked: Joi.boolean().optional(),
+  }),
+};
+
+export const dislikeMealLog = {
+  params: Joi.object().keys({
+    logId: Joi.string().hex().length(24).required(),
+  }),
+  body: Joi.object().keys({
+    isDisliked: Joi.boolean().optional(),
+  }),
+};
+
+export const undoDeleteMealPlanItem = {
+  params: Joi.object().keys({
+    planId: Joi.string().hex().length(24).required(),
+    mealTime: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').required(),
+  }),
+};
+
+export const getSuggestedAlternatives = {
+  params: Joi.object().keys({
+    planId: Joi.string().hex().length(24).required(),
+    mealTime: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').required(),
+  }),
+};
+
 export default {
   generateMealPlan,
   logMeal,
@@ -161,4 +194,8 @@ export default {
   mealPlanItemParam,
   setMealPlanItemLikeStatus,
   getLikedMeals,
+  dislikeMealPlanItem,
+  dislikeMealLog,
+  undoDeleteMealPlanItem,
+  getSuggestedAlternatives,
 };

@@ -844,6 +844,205 @@ export const getLikedMeals = async (req, res) => {
 };
 
 
+// ✅ NEW: Dislike a meal plan item — marks isDisliked:true and auto-suggests the next alternative
+export const dislikeMealPlanItem = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { planId, mealTime } = req.params;
+    const requestedValue = req.body?.isDisliked;
+
+    const mealPlan = await MealPlan.findOne({ _id: planId, userId });
+    if (!mealPlan) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal plan not found',
+      });
+    }
+
+    if (!mealPlan[mealTime] || mealPlan[mealTime].isDeleted) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: `${mealTime} meal is not available in this plan`,
+      });
+    }
+
+    mealPlan[mealTime].isDisliked = typeof requestedValue === 'boolean' ? requestedValue : !mealPlan[mealTime].isDisliked;
+    // If disliking, clear the like flag
+    if (mealPlan[mealTime].isDisliked) {
+      mealPlan[mealTime].isLiked = false;
+    }
+    await mealPlan.save();
+
+    // Auto-suggest the next alternative for this mealTime
+    let suggestedAlternative = null;
+    try {
+      suggestedAlternative = getNextMealVariant(mealTime, mealPlan[mealTime]?.food);
+    } catch (_) {
+      // Ignore if no variants available
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        planId: mealPlan._id,
+        mealTime,
+        isDisliked: mealPlan[mealTime].isDisliked,
+        plan: serializeMealPlan(mealPlan),
+        suggestedAlternative,
+      },
+      message: `Meal plan item ${mealPlan[mealTime].isDisliked ? 'disliked' : 'undisliked'} successfully`,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to update meal plan item dislike status',
+    });
+  }
+};
+
+// ✅ NEW: Dislike a meal log entry
+export const dislikeMealLog = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { logId } = req.params;
+    const requestedValue = req.body?.isDisliked;
+
+    const mealLog = await MealLog.findOne({ _id: logId, userId });
+    if (!mealLog) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal log not found',
+      });
+    }
+
+    mealLog.isDisliked = typeof requestedValue === 'boolean' ? requestedValue : !mealLog.isDisliked;
+    // If disliking, clear the like flag
+    if (mealLog.isDisliked) {
+      mealLog.isLiked = false;
+    }
+    await mealLog.save();
+
+    return res.json({
+      success: true,
+      data: mealLog,
+      message: `Meal log ${mealLog.isDisliked ? 'disliked' : 'undisliked'} successfully`,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to update meal log dislike status',
+    });
+  }
+};
+
+// ✅ NEW: Undo delete of a meal plan item — restores a soft-deleted meal back to the plan
+export const undoDeleteMealPlanItem = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { planId, mealTime } = req.params;
+
+    const mealPlan = await MealPlan.findOne({ _id: planId, userId });
+    if (!mealPlan) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal plan not found',
+      });
+    }
+
+    if (!mealPlan[mealTime]) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: `${mealTime} meal slot does not exist in this plan`,
+      });
+    }
+
+    if (!mealPlan[mealTime].isDeleted) {
+      return res.status(400).json({
+        success: false,
+        data: {},
+        message: `${mealTime} meal is not deleted — nothing to undo`,
+      });
+    }
+
+    mealPlan[mealTime].isDeleted = false;
+    mealPlan[mealTime].deletedAt = null;
+    recalculateMealPlanTotals(mealPlan);
+    await mealPlan.save();
+
+    return res.json({
+      success: true,
+      data: {
+        planId: mealPlan._id,
+        mealTime,
+        plan: serializeMealPlan(mealPlan),
+      },
+      message: `${mealTime} meal restored successfully`,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to undo meal plan item deletion',
+    });
+  }
+};
+
+// ✅ NEW: Get suggested alternative meals for a given meal time (without committing)
+export const getSuggestedAlternatives = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { planId, mealTime } = req.params;
+
+    const validMealTimes = ['breakfast', 'lunch', 'dinner', 'snack'];
+    if (!validMealTimes.includes(mealTime)) {
+      return res.status(400).json({
+        success: false,
+        data: {},
+        message: 'Invalid meal time. Must be breakfast, lunch, dinner, or snack.',
+      });
+    }
+
+    const mealPlan = await MealPlan.findOne({ _id: planId, userId });
+    if (!mealPlan) {
+      return res.status(404).json({
+        success: false,
+        data: {},
+        message: 'Meal plan not found',
+      });
+    }
+
+    const variants = getMealVariants()[mealTime] || [];
+    const currentFood = mealPlan[mealTime]?.food;
+
+    // Return all alternatives excluding the currently set meal
+    const alternatives = variants.filter((v) => v.food !== currentFood);
+
+    return res.json({
+      success: true,
+      data: {
+        planId: mealPlan._id,
+        mealTime,
+        currentMeal: mealPlan[mealTime] || null,
+        alternatives,
+      },
+      message: 'Alternative meals fetched successfully',
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      data: {},
+      message: err.message || 'Failed to fetch alternative meals',
+    });
+  }
+};
+
 export default {
   generateMealPlan,
   logMeal,
@@ -859,8 +1058,13 @@ export default {
   deleteMealLog,
   setMealLikeStatus,
   getLikedMeals,
-
+  dislikeMealPlanItem,
+  dislikeMealLog,
+  undoDeleteMealPlanItem,
+  getSuggestedAlternatives,
 };
+
+
 
 
 // src/controllers/mealController.js
