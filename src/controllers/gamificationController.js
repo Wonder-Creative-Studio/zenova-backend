@@ -11,32 +11,13 @@ import UserStats from '~/models/userStatsModel';
 import User from '~/models/userModel';
 import Quest from '~/models/questModel';
 import configV2 from '~/config/gamificationV2';
+import {
+    DEFAULT_TIMEZONE,
+    getZonedDateKey,
+    getMondayDateKey,
+} from '~/utils/timezone';
 
-const APP_TIME_ZONE = 'Asia/Kolkata';
-
-const getZonedDateParts = (date = new Date(), timeZone = APP_TIME_ZONE) => {
-    const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-    }).formatToParts(date);
-
-    const getPart = (type) => Number(parts.find(part => part.type === type)?.value);
-    return {
-        year: getPart('year'),
-        month: getPart('month'),
-        day: getPart('day'),
-    };
-};
-
-const toIsoDateFromParts = ({ year, month, day }) => (
-    `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-);
-
-const getZonedDateKey = (date = new Date(), timeZone = APP_TIME_ZONE) => (
-    toIsoDateFromParts(getZonedDateParts(date, timeZone))
-);
+const APP_TIME_ZONE = DEFAULT_TIMEZONE;
 
 const getZonedTimeString = (date = new Date(), timeZone = APP_TIME_ZONE) => (
     new Intl.DateTimeFormat('en-IN', {
@@ -63,19 +44,6 @@ const decorateTransactionForClient = (transaction) => {
         updatedAtLocalDate: updatedAt ? getZonedDateKey(updatedAt) : null,
         updatedAtLocalTime: updatedAt ? getZonedTimeString(updatedAt) : null,
     };
-};
-
-const addDaysToDateKey = (dateKey, days) => {
-    const [year, month, day] = dateKey.split('-').map(Number);
-    const utcDate = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
-    return utcDate.toISOString().split('T')[0];
-};
-
-const getMondayDateKey = (dateKey) => {
-    const [year, month, day] = dateKey.split('-').map(Number);
-    const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-    const daysSinceMonday = (utcDate.getUTCDay() + 6) % 7;
-    return addDaysToDateKey(dateKey, -daysSinceMonday);
 };
 
 // Returns 7-day calendar for the current week (Mon–Sun)
@@ -135,10 +103,13 @@ const buildQuestResponse = (questsCompleted, allQuests, period) => {
         let isCompleted = false;
         if (completedAt) {
             const completedKey = getZonedDateKey(new Date(completedAt));
-            if (quest.category === 'daily')       isCompleted = completedKey === todayKey;
-            else if (quest.category === 'weekly') isCompleted = completedKey >= weekStartKey;
-            else if (quest.category === 'monthly') isCompleted = completedKey.startsWith(monthKey);
-            else                                  isCompleted = true; // milestone, special: one-shot
+            const period = quest.resetPeriod && quest.resetPeriod !== 'none'
+                ? quest.resetPeriod
+                : quest.category;
+            if (period === 'daily')        isCompleted = completedKey === todayKey;
+            else if (period === 'weekly')  isCompleted = completedKey >= weekStartKey;
+            else if (period === 'monthly') isCompleted = completedKey.startsWith(monthKey);
+            else                           isCompleted = true; // milestone, special: one-shot
         }
         return {
             id: quest._id,
@@ -263,7 +234,8 @@ export const getCoinsHistory = async (req, res) => {
         let { category, type } = req.query;
 
         const transactionTypes = ['activity_reward', 'quest_bonus', 'quest_reward', 'streak_bonus', 'badge_bonus',
-            'referral', 'spent', 'refund', 'admin_adjustment', 'onboarding_reward'];
+            'referral', 'spent', 'refund', 'admin_adjustment', 'onboarding_reward',
+            'mood_suggestion_reward'];
 
         // Backward-friendly: if the app sends category=quest_bonus, treat it as a transaction type.
         if (!type && transactionTypes.includes(category)) {
@@ -370,9 +342,9 @@ export const startDailyQuests = async (req, res) => {
     try {
         const userId = req.user.id;
         
-        // Deduct 50 NC
+        // Deduct the configured start cost (single source of truth)
         const transaction = await novaCoinsService.spendCoins(userId, {
-            amount: 50,
+            amount: configV2.QUEST_CONFIG.startCost,
             category: 'quest_start',
             description: 'Started a daily quest'
         });

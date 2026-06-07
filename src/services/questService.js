@@ -5,6 +5,7 @@ import User from '~/models/userModel';
 import novaCoinsService from '~/services/novaCoinsService';
 import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
+import { DEFAULT_TIMEZONE, getZonedDateKey, getMondayDateKey } from '~/utils/timezone';
 
 const parser = new Parser();
 
@@ -16,41 +17,7 @@ const LEGACY_MEDAL_REWARDS = {
 
 const DAILY_CHECK_IN_TITLE = 'Daily Check-in';
 const DAILY_CHECK_IN_CONDITION = 'today.activityCount >= 1';
-const APP_TIME_ZONE = 'Asia/Kolkata';
-
-const getZonedDateParts = (date = new Date(), timeZone = APP_TIME_ZONE) => {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-
-  const getPart = (type) => Number(parts.find(part => part.type === type)?.value);
-  return {
-    year: getPart('year'),
-    month: getPart('month'),
-    day: getPart('day'),
-  };
-};
-
-const getZonedDateKey = (date = new Date(), timeZone = APP_TIME_ZONE) => {
-  const { year, month, day } = getZonedDateParts(date, timeZone);
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-};
-
-const addDaysToDateKey = (dateKey, days) => {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  const utcDate = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
-  return utcDate.toISOString().split('T')[0];
-};
-
-const getMondayDateKey = (dateKey) => {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-  const daysSinceMonday = (utcDate.getUTCDay() + 6) % 7;
-  return addDaysToDateKey(dateKey, -daysSinceMonday);
-};
+const APP_TIME_ZONE = DEFAULT_TIMEZONE;
 
 const getQuestPeriodKey = (quest, now = new Date()) => {
   const period = quest.resetPeriod || quest.category;

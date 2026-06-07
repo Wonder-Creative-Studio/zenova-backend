@@ -65,6 +65,13 @@ export const addDaysToDateKey = (dateKey, days) => {
   return utcDate.toISOString().split('T')[0];
 };
 
+export const getMondayDateKey = (dateKey) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const daysSinceMonday = (utcDate.getUTCDay() + 6) % 7;
+  return addDaysToDateKey(dateKey, -daysSinceMonday);
+};
+
 export const getZonedHour = (date = new Date(), timeZone = DEFAULT_TIMEZONE) => {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,

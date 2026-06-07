@@ -3,6 +3,12 @@ import Quest from '~/models/questModel';
 import User from '~/models/userModel';
 import APIError from '~/utils/apiError';
 import httpStatus from 'http-status';
+import { EXPECTED_RESET_PERIOD_MAP } from '~/validations/admin/questValidation';
+
+const deriveResetPeriod = (category, supplied) => {
+	if (supplied) return supplied;
+	return EXPECTED_RESET_PERIOD_MAP[category] || 'none';
+};
 
 export const list = async (query = {}) => {
 	const filter = {};
@@ -29,6 +35,7 @@ export const list = async (query = {}) => {
 };
 
 export const create = async (body) => {
+	const category = body.category || 'milestone';
 	const q = await Quest.create({
 		title: body.title,
 		description: body.description,
@@ -36,8 +43,8 @@ export const create = async (body) => {
 		rewardCoins: body.rewardCoins || 0,
 		rewardMedals: body.rewardMedals || 0,
 		badge: body.badge || {},
-		category: body.category || 'milestone',
-		resetPeriod: body.resetPeriod || 'none',
+		category,
+		resetPeriod: deriveResetPeriod(category, body.resetPeriod),
 		expiresAt: body.expiresAt || null,
 		isActive: body.isActive !== undefined ? body.isActive : true,
 	});
@@ -59,6 +66,13 @@ export const update = async (id, body) => {
 		'isActive',
 	];
 	for (const k of allow) if (body[k] !== undefined) patch[k] = body[k];
+
+	// If category is changing but resetPeriod was not supplied, snap resetPeriod to the
+	// coherent default so the public list (which respects resetPeriod) stays in sync.
+	if (patch.category && patch.resetPeriod === undefined) {
+		patch.resetPeriod = deriveResetPeriod(patch.category, undefined);
+	}
+
 	const updated = await Quest.findByIdAndUpdate(id, { $set: patch }, { new: true }).lean();
 	if (!updated) throw new APIError('Quest not found', httpStatus.NOT_FOUND);
 	return updated;

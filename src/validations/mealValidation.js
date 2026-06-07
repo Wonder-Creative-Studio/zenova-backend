@@ -63,6 +63,7 @@ export const getNutritionSummary = {
   query: Joi.object().keys({
     startDate: Joi.date().optional(),
     endDate: Joi.date().optional(),
+    date: Joi.alternatives(Joi.date(), Joi.string().valid('today')).optional(),
   }),
 };
 
