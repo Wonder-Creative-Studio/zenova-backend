@@ -11,7 +11,7 @@ import appleService from '~/services/appleService';
 import { normalizeLocation } from '~/utils/location';
 
 const mergeUserContextUpdate = (user, body) => {
-  const { fcmTokens } = body;
+  const { fcmTokens, timezone } = body;
   const incoming = fcmTokens
     ? (Array.isArray(fcmTokens) ? fcmTokens : [fcmTokens])
     : [];
@@ -24,6 +24,10 @@ const mergeUserContextUpdate = (user, body) => {
   const normalizedLocation = normalizeLocation(body);
   if (normalizedLocation) {
     update.location = normalizedLocation;
+  }
+
+  if (typeof timezone === 'string' && timezone.trim()) {
+    update.timezone = timezone.trim();
   }
 
   return update;

@@ -8,6 +8,7 @@ import httpStatus from 'http-status';
 import APIError from '~/utils/apiError';
 import gamificationServiceV2 from '~/services/gamificationServiceV2';
 import { emitAuraUpdate } from '~/services/auraEventBus';
+import { DEFAULT_TIMEZONE, getLocalDayBounds } from '~/utils/timezone';
 
 // Helper: Calculate target calories based on user profile
 const calculateTargetCalories = (user) => {
@@ -386,9 +387,11 @@ export const getMealLogs = async (req, res) => {
 
     let start, end;
     if (date) {
-      const day = date === 'today' ? new Date() : new Date(date);
-      start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-      end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      const tz = req.user?.timezone || DEFAULT_TIMEZONE;
+      const refDate = date === 'today' ? new Date() : new Date(date);
+      const bounds = getLocalDayBounds(refDate, tz);
+      start = bounds.start;
+      end = bounds.end;
     } else {
       start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       end = endDate ? new Date(endDate) : new Date();
@@ -496,14 +499,23 @@ export const getWeeklyMealPlan = async (req, res) => {
 export const getNutritionSummary = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, date } = req.query;
 
-    const end = endDate ? new Date(endDate) : new Date();
-    const start = startDate ? new Date(startDate) : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+    let start, end;
+    if (date) {
+      const tz = req.user?.timezone || DEFAULT_TIMEZONE;
+      const refDate = date === 'today' ? new Date() : new Date(date);
+      const bounds = getLocalDayBounds(refDate, tz);
+      start = bounds.start;
+      end = bounds.end;
+    } else {
+      end = endDate ? new Date(endDate) : new Date();
+      start = startDate ? new Date(startDate) : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
 
     const logs = await MealLog.find({
       userId,
-      loggedAt: { $gte: start, $lte: end },
+      loggedAt: { $gte: start, $lt: end },
     });
 
     const totalCalories = logs.reduce((sum, log) => sum + log.calories, 0);

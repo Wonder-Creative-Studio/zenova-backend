@@ -117,7 +117,7 @@ export const sendOtp = async (req, res, next) => {
 
 export const verifyOtp = async (req, res, next) => {
   try {
-    let { email, phone, otp, type, fcmTokens, location } = req.body;
+    let { email, phone, otp, type, fcmTokens, location, timezone } = req.body;
 
     // Default OTP type (same as sendOtp)
     type = type || 'LOGIN';
@@ -171,6 +171,9 @@ export const verifyOtp = async (req, res, next) => {
     const normalizedLocation = normalizeLocation(location);
     if (normalizedLocation) {
       update.location = normalizedLocation;
+    }
+    if (typeof timezone === 'string' && timezone.trim()) {
+      update.timezone = timezone.trim();
     }
 
     user = await User.findByIdAndUpdate(user._id, { $set: update }, { new: true });

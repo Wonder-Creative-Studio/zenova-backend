@@ -210,8 +210,9 @@ export const ACTIONS_CONFIG = {
 };
 
 export const QUEST_CONFIG = {
-    startCost: 50,    // Nova Coins deducted when user starts today's quests
-    skipPenalty: 200, // Nova Coins deducted when user skips today's quests
+    startCost: 100,                 // Nova Coins deducted when user starts today's quests
+    skipPenalty: 200,               // Nova Coins deducted when user skips today's quests
+    refundOnFirstCompletion: true,  // Refund startCost the first time a daily quest is completed that day
 };
 
 export const STREAK_PAUSE_COST = 200; // Nova Coins to pause a streak for 1 day
