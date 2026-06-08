@@ -1,0 +1,1049 @@
+{
+	"info": {
+		"_postman_id": "d4f92a13-cc81-4b7e-9f21-3e7a1c08b4d9",
+		"name": "Zenova Meal API v2 — Dislike, Undo & Alternatives",
+		"description": "Postman Collection for Zenova backend meal endpoints (v2):\n1. Dislike a meal plan item (marks isDisliked + auto-suggests alternative)\n2. Dislike a meal log entry\n3. Undo delete of a meal plan item (restore soft-deleted meal)\n4. Get suggested alternative meals (read-only, no commit)\n\nAlso includes all existing meal endpoints for full coverage:\n- Generate / get meal plan (daily & weekly)\n- Log a meal\n- Get meal logs\n- Nutrition summary\n- Like / favorite\n- Delete meal plan item\n- Delete meal log\n- Regenerate / redo a meal item\n- Generate grocery list\n- Get favorite meals",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "🆕 Dislike & Undo (New Endpoints)",
+			"item": [
+				{
+					"name": "Dislike Meal Plan Item",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"isDisliked\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/:planId/items/:mealTime/dislike",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								":planId",
+								"items",
+								":mealTime",
+								"dislike"
+							],
+							"variable": [
+								{
+									"key": "planId",
+									"value": "665f8e3f9a721c0017a0b3f5",
+									"description": "The MongoDB _id of the meal plan document"
+								},
+								{
+									"key": "mealTime",
+									"value": "breakfast",
+									"description": "One of: breakfast, lunch, dinner, snack"
+								}
+							]
+						},
+						"description": "Marks a meal plan item as disliked. Automatically clears the `isLiked` flag if set. The response also includes `suggestedAlternative` — the next available meal variant for this meal time.\n\n**Body:**\n- `isDisliked` (boolean, optional) — if omitted, toggles the current state\n\n**Response includes:**\n- `isDisliked` — current state\n- `suggestedAlternative` — next variant (food, calories, protein, carbs, fats)\n- `plan` — full updated meal plan"
+					},
+					"response": []
+				},
+				{
+					"name": "Undislike Meal Plan Item (Toggle OFF)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"isDisliked\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/:planId/items/:mealTime/dislike",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								":planId",
+								"items",
+								":mealTime",
+								"dislike"
+							],
+							"variable": [
+								{
+									"key": "planId",
+									"value": "665f8e3f9a721c0017a0b3f5",
+									"description": "The MongoDB _id of the meal plan document"
+								},
+								{
+									"key": "mealTime",
+									"value": "breakfast",
+									"description": "One of: breakfast, lunch, dinner, snack"
+								}
+							]
+						},
+						"description": "Explicitly removes the dislike from a meal plan item by passing `isDisliked: false`."
+					},
+					"response": []
+				},
+				{
+					"name": "Dislike Meal Log",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"isDisliked\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/logs/:logId/dislike",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"logs",
+								":logId",
+								"dislike"
+							],
+							"variable": [
+								{
+									"key": "logId",
+									"value": "665f8e3f9a721c0017a0b3f9",
+									"description": "The MongoDB _id of the meal log entry"
+								}
+							]
+						},
+						"description": "Marks a manually logged meal as disliked. Automatically clears `isLiked` if set.\n\n**Body:**\n- `isDisliked` (boolean, optional) — if omitted, toggles the current state"
+					},
+					"response": []
+				},
+				{
+					"name": "Undo Delete Meal Plan Item",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/:planId/items/:mealTime/undo-delete",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								":planId",
+								"items",
+								":mealTime",
+								"undo-delete"
+							],
+							"variable": [
+								{
+									"key": "planId",
+									"value": "665f8e3f9a721c0017a0b3f5",
+									"description": "The MongoDB _id of the meal plan document"
+								},
+								{
+									"key": "mealTime",
+									"value": "breakfast",
+									"description": "One of: breakfast, lunch, dinner, snack"
+								}
+							]
+						},
+						"description": "Restores a soft-deleted meal plan item back to the plan. Sets `isDeleted: false` and `deletedAt: null`, then recalculates `totalCalories`.\n\n**Returns 400** if the meal item is not currently deleted (nothing to undo).\n**Returns 404** if the plan or meal slot does not exist.\n\n**No request body needed.**"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Suggested Alternative Meals",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/:planId/items/:mealTime/alternatives",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								":planId",
+								"items",
+								":mealTime",
+								"alternatives"
+							],
+							"variable": [
+								{
+									"key": "planId",
+									"value": "665f8e3f9a721c0017a0b3f5",
+									"description": "The MongoDB _id of the meal plan document"
+								},
+								{
+									"key": "mealTime",
+									"value": "lunch",
+									"description": "One of: breakfast, lunch, dinner, snack"
+								}
+							]
+						},
+						"description": "Returns all available alternative meals for the given meal time **excluding the currently set meal**. This is a read-only preview — no changes are committed to the plan.\n\n**Response includes:**\n- `currentMeal` — the meal currently set for this slot\n- `alternatives` — array of { food, calories, protein, carbs, fats } options\n\nTo commit a swap, use `POST /plan/regenerate`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Meal Plan",
+			"item": [
+				{
+					"name": "Generate Meal Plan (Today)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2026-06-06\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan"
+							]
+						},
+						"description": "Generates a meal plan for the given date (or today if not provided). Returns the existing plan if one already exists for that date.\n\n**Body:**\n- `date` (optional) — ISO date string, defaults to today"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Meal Plan (Daily)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/get-meal-plan?date=2026-06-06",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"get-meal-plan"
+							],
+							"query": [
+								{
+									"key": "date",
+									"value": "2026-06-06",
+									"description": "ISO date string (optional, defaults to today)"
+								},
+								{
+									"key": "view",
+									"value": "weekly",
+									"description": "Pass 'weekly' to get the weekly view",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Fetches the meal plan for a specific date. Pass `?view=weekly` to get the full weekly view instead."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Weekly Meal Plan",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/weekly?date=2026-06-06",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								"weekly"
+							],
+							"query": [
+								{
+									"key": "date",
+									"value": "2026-06-06",
+									"description": "Any date in the target week"
+								}
+							]
+						},
+						"description": "Returns the full 7-day meal plan for the week containing the given date. Includes navigation dates for previous and next weeks, plus a weekly nutrition summary."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Meal Plan",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2026-06-06\",\n    \"breakfast\": {\n        \"food\": \"Greek Yogurt + Berries\",\n        \"calories\": 280,\n        \"protein\": 18,\n        \"carbs\": 26,\n        \"fats\": 8\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/update-meal-plan",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"update-meal-plan"
+							]
+						},
+						"description": "Updates specific meal slots in an existing meal plan. Only provided fields are updated."
+					},
+					"response": []
+				},
+				{
+					"name": "Regenerate / Redo Meal Plan Item",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2026-06-06\",\n    \"mealTime\": \"breakfast\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/regenerate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								"regenerate"
+							]
+						},
+						"description": "Cycles to the next available meal variant for the given meal time and commits the change to the plan. This is the 'swap' action. To preview alternatives without committing, use `GET /plan/:planId/items/:mealTime/alternatives`."
+					},
+					"response": []
+				},
+				{
+					"name": "Like / Favorite Meal Plan Item",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"isLiked\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/:planId/items/:mealTime/like",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								":planId",
+								"items",
+								":mealTime",
+								"like"
+							],
+							"variable": [
+								{
+									"key": "planId",
+									"value": "665f8e3f9a721c0017a0b3f5",
+									"description": "The MongoDB _id of the meal plan document"
+								},
+								{
+									"key": "mealTime",
+									"value": "breakfast",
+									"description": "One of: breakfast, lunch, dinner, snack"
+								}
+							]
+						},
+						"description": "Likes or unlikes a specific meal item within an active meal plan."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Meal Plan Item (Soft Delete)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/plan/:planId/items/:mealTime",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"plan",
+								":planId",
+								"items",
+								":mealTime"
+							],
+							"variable": [
+								{
+									"key": "planId",
+									"value": "665f8e3f9a721c0017a0b3f5",
+									"description": "The MongoDB _id of the meal plan document"
+								},
+								{
+									"key": "mealTime",
+									"value": "dinner",
+									"description": "One of: breakfast, lunch, dinner, snack"
+								}
+							]
+						},
+						"description": "Soft-deletes a meal plan item (sets `isDeleted: true`). Can be restored using `POST /plan/:planId/items/:mealTime/undo-delete`."
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Grocery List",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"planId\": \"665f8e3f9a721c0017a0b3f5\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/grocery-list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"grocery-list"
+							]
+						},
+						"description": "Auto-generates a grocery list from an existing meal plan. If `planId` is omitted, uses today's plan."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Meal Logs",
+			"item": [
+				{
+					"name": "Log a Meal (Free-text)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"food\": \"Chicken Biryani\",\n    \"calories\": 520,\n    \"protein\": 35,\n    \"carbs\": 58,\n    \"fats\": 14,\n    \"mealTime\": \"lunch\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/log",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"log"
+							]
+						},
+						"description": "Logs a manually entered meal. Nutrition values must be provided when not using a food catalog ID.\n\nAlso triggers gamification processing (NovaCoins, streaks, quests)."
+					},
+					"response": []
+				},
+				{
+					"name": "Log a Meal (From Food Catalog)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"foodCatalogId\": \"665f8e3f9a721c0017a0b400\",\n    \"quantity\": 2,\n    \"unit\": \"serving\",\n    \"mealTime\": \"dinner\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/log",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"log"
+							]
+						},
+						"description": "Logs a meal from the food catalog. Nutrition is resolved server-side from the catalog entry — no need to pass calories/protein/carbs/fats manually."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Meal Logs",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/logs?date=today",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"logs"
+							],
+							"query": [
+								{
+									"key": "date",
+									"value": "today",
+									"description": "Pass 'today' or an ISO date string. Or use startDate + endDate for a range."
+								},
+								{
+									"key": "startDate",
+									"value": "2026-06-01",
+									"disabled": true
+								},
+								{
+									"key": "endDate",
+									"value": "2026-06-06",
+									"disabled": true
+								},
+								{
+									"key": "mealTime",
+									"value": "lunch",
+									"description": "Filter by meal time: breakfast, lunch, dinner, snack",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Fetches meal log history. Supports filtering by date, date range, and meal time."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Nutrition Summary",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/summary?startDate=2026-06-01&endDate=2026-06-06",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"summary"
+							],
+							"query": [
+								{
+									"key": "startDate",
+									"value": "2026-06-01"
+								},
+								{
+									"key": "endDate",
+									"value": "2026-06-06"
+								}
+							]
+						},
+						"description": "Returns aggregated nutrition totals (calories, protein, carbs, fats) and avg calories per day over the given date range."
+					},
+					"response": []
+				},
+				{
+					"name": "Like / Favorite Meal Log",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"isLiked\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/meal/logs/:logId/like",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"logs",
+								":logId",
+								"like"
+							],
+							"variable": [
+								{
+									"key": "logId",
+									"value": "665f8e3f9a721c0017a0b3f9",
+									"description": "The MongoDB _id of the meal log entry"
+								}
+							]
+						},
+						"description": "Likes or unlikes a specific meal log entry."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Meal Log",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/logs/:logId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"logs",
+								":logId"
+							],
+							"variable": [
+								{
+									"key": "logId",
+									"value": "665f8e3f9a721c0017a0b3f9",
+									"description": "The MongoDB _id of the meal log entry"
+								}
+							]
+						},
+						"description": "Permanently deletes a meal log entry."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Favorites",
+			"item": [
+				{
+					"name": "Get Favorite / Liked Meals",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/favorites?source=all&page=1&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"favorites"
+							],
+							"query": [
+								{
+									"key": "source",
+									"value": "all",
+									"description": "Filter source: 'all' | 'plans' | 'logs'"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Returns all liked/favorited meals from both meal plans and manual meal logs.\n\n**Query params:**\n- `source`: 'all' (default), 'plans', or 'logs'\n- `page` / `limit`: pagination\n\n**Response includes:**\n- `likedPlanItems` — liked items from meal plans\n- `likedLogs` — liked manual meal log entries\n- `total` — combined count"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Favorites (Plans Only)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/favorites?source=plans&page=1&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"favorites"
+							],
+							"query": [
+								{
+									"key": "source",
+									"value": "plans"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Returns only liked items from meal plans (not manual logs)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Favorites (Logs Only)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/meal/favorites?source=logs&page=1&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"meal",
+								"favorites"
+							],
+							"query": [
+								{
+									"key": "source",
+									"value": "logs"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Returns only liked entries from manual meal logs (not meal plan items)."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "your_jwt_auth_token_here",
+			"type": "string"
+		}
+	]
+}
